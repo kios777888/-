@@ -1,3 +1,0 @@
-step 1 :cd C:\Users\kiosX\OneDrive\Desktop\app
-step 2 :.\venv\Scripts\Activate.ps1
-step 3 :python app.py
