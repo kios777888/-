@@ -9,12 +9,8 @@ PyJWT==2.8.0
 Werkzeug==2.3.7
 gunicorn==21.2.0
 SQLAlchemy==2.0.23
-
-# --- THE FIX FOR RENDER ---
 eventlet==0.35.2
-greenlet==3.0.3
-# --------------------------
-
+greenlet==2.0.2
 click==8.1.7
 blinker==1.6.2
 simple-websocket==1.0.0
