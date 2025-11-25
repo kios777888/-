@@ -1,29 +1,36 @@
 """
-شكون لمافيا - Enhanced Backend with Chat & Timing
+شكون لمافيا - Enhanced Mafia Game Backend
+Production-ready for Render deployment
 """
-from flask import Flask, render_template, request, jsonify, session, make_response, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
-import jwt, os, json, random, string, uuid, logging, time
+import jwt
+import os
+import json
+import random
+import uuid
+import logging
+import time
 from datetime import datetime, timedelta
-from functools import wraps
 
 # ============================================================================
-# SETUP
+# CONFIGURATION
 # ============================================================================
 
 app = Flask(__name__, template_folder='templates', static_folder='templates')
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-2024-change-in-production')
+
+# Environment-based config
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-2024')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///mafia.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JSON_AS_ASCII'] = False
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
+app.config['SESSION_COOKIE_SECURE'] = False  # Allow HTTP for development
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
+# Initialize extensions
 db = SQLAlchemy(app)
 socketio = SocketIO(
     app,
@@ -34,8 +41,9 @@ socketio = SocketIO(
     logger=False,
     engineio_logger=False
 )
-CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"]}})
+CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]}})
 
+# Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -65,6 +73,8 @@ class User(db.Model):
         return check_password_hash(self.password_hash, password)
     
     def to_dict(self):
+        total = self.wins + self.losses
+        win_rate = round(self.wins / total * 100, 1) if total > 0 else 0
         return {
             'id': self.id,
             'username': self.username,
@@ -72,13 +82,14 @@ class User(db.Model):
             'avatar': self.avatar,
             'wins': self.wins,
             'losses': self.losses,
-            'winRate': round(self.wins / (self.wins + self.losses) * 100, 1) if (self.wins + self.losses) > 0 else 0
+            'winRate': win_rate
         }
+
 
 class GameRoom(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = db.Column(db.String(120), nullable=False)
-    host_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=True)
+    host_id = db.Column(db.String(36), nullable=True)
     is_public = db.Column(db.Boolean, default=True)
     max_players = db.Column(db.Integer, default=8)
     mafia_count = db.Column(db.Integer, default=2)
@@ -88,14 +99,16 @@ class GameRoom(db.Model):
     players_data = db.Column(db.Text, default='{}')
     game_state = db.Column(db.Text, default='{}')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    started_at = db.Column(db.DateTime)
-    ended_at = db.Column(db.DateTime)
+    started_at = db.Column(db.DateTime, nullable=True)
+    ended_at = db.Column(db.DateTime, nullable=True)
     
     def to_dict(self):
         try:
-            players_count = len(json.loads(self.players_data or '{}'))
-        except (json.JSONDecodeError, TypeError):
-            players_count = 0
+            players = json.loads(self.players_data or '{}')
+            player_count = len(players)
+        except:
+            player_count = 0
+        
         return {
             'id': self.id,
             'name': self.name,
@@ -103,129 +116,95 @@ class GameRoom(db.Model):
             'is_public': self.is_public,
             'max_players': self.max_players,
             'status': self.status,
-            'player_count': players_count,
+            'player_count': player_count,
             'mafia_count': self.mafia_count,
             'detective_count': self.detective_count,
             'doctor_count': self.doctor_count
         }
 
+
 # ============================================================================
-# GAME CONSTANTS
+# GAME STATE
 # ============================================================================
 
+active_rooms = {}
 ROLES = {
-    'mafia': {'ar': 'مافيا', 'en': 'Mafia', 'icon': '🔫', 'color': '#c41e3a'},
-    'detective': {'ar': 'محقق', 'en': 'Detective', 'icon': '🔍', 'color': '#4287f5'},
-    'doctor': {'ar': 'طبيب', 'en': 'Doctor', 'icon': '🏥', 'color': '#2ecc71'},
-    'villager': {'ar': 'مواطن', 'en': 'Villager', 'icon': '👥', 'color': '#95a5a6'}
+    'mafia': {'ar': 'مافيا', 'en': 'Mafia', 'icon': '🔫'},
+    'detective': {'ar': 'محقق', 'en': 'Detective', 'icon': '🔍'},
+    'doctor': {'ar': 'طبيب', 'en': 'Doctor', 'icon': '🏥'},
+    'villager': {'ar': 'مواطن', 'en': 'Villager', 'icon': '👥'}
 }
 
-PHASE_NIGHT = 'night'
-PHASE_DAY = 'day'
-PHASE_ENDED = 'ended'
-
-PHASE_DURATIONS = {
-    'night': 60,
-    'day': 90
-}
-
-# ============================================================================
-# GAME LOGIC
-# ============================================================================
-
-def distribute_roles(player_count, mafia_count, detective_count, doctor_count):
-    if player_count < 4:
-        return None
-    
-    roles = []
-    mafia_actual = min(mafia_count, max(1, player_count - 1))
-    roles.extend(['mafia'] * mafia_actual)
-    
-    detective_actual = min(detective_count, player_count - len(roles))
-    roles.extend(['detective'] * detective_actual)
-    
-    doctor_actual = min(doctor_count, player_count - len(roles))
-    roles.extend(['doctor'] * doctor_actual)
-    
-    villager_actual = player_count - len(roles)
-    roles.extend(['villager'] * villager_actual)
-    
-    assert len(roles) == player_count
-    random.shuffle(roles)
-    return roles
-
-def check_win_condition(players):
-    alive_players = {sid: p for sid, p in players.items() if p.get('alive', True)}
-    if not alive_players:
-        return None
-    
-    mafia_alive = sum(1 for p in alive_players.values() if p.get('role') == 'mafia')
-    villagers_alive = sum(1 for p in alive_players.values() if p.get('role') != 'mafia')
-    
-    if mafia_alive == 0:
-        return 'villagers'
-    elif mafia_alive >= villagers_alive:
-        return 'mafia'
-    return None
 
 def get_or_create_room(room_id):
     if room_id not in active_rooms:
         active_rooms[room_id] = {
             'players': {},
-            'phase': PHASE_NIGHT,
-            'round': 1,
+            'phase': 'waiting',
+            'round': 0,
             'mafia_target': None,
             'doctor_target': None,
             'detective_target': None,
             'day_votes': {},
-            'eliminated': None,
-            'killed': None,
             'night_actions_ready': {},
-            'phase_start_time': time.time(),
-            'phase_timer': None,
-            'mafia_chat': [],
-            'public_chat': []
+            'created_at': time.time()
         }
     return active_rooms[room_id]
 
-# ============================================================================
-# GLOBAL STATE
-# ============================================================================
-
-active_rooms = {}
-player_sockets = {}
 
 # ============================================================================
 # STATIC FILE ROUTES
 # ============================================================================
-
-@app.route('/print.html')
-def serve_print():
-    return send_from_directory('templates', 'print.html')
 
 @app.route('/img/<path:filename>')
 def serve_image(filename):
     try:
         return send_from_directory('img', filename)
     except:
-        return "Image not found", 404
+        return "Not found", 404
+
 
 @app.route('/music/<path:filename>')
 def serve_music(filename):
     try:
         return send_from_directory('music', filename)
     except:
-        return "Music not found", 404
+        return "Not found", 404
+
 
 @app.route('/fonts/<path:filename>')
 def serve_fonts(filename):
     try:
         return send_from_directory('fonts', filename)
     except:
-        return "Font not found", 404
+        return "Not found", 404
+
 
 # ============================================================================
-# REST API ROUTES
+# MAIN ROUTES
+# ============================================================================
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/print')
+def print_page():
+    return render_template('print.html')
+
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.utcnow().isoformat(),
+        'service': 'شكون لمافيا API'
+    }), 200
+
+
+# ============================================================================
+# AUTH API
 # ============================================================================
 
 def create_token(user_id):
@@ -235,77 +214,70 @@ def create_token(user_id):
     }
     return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
 
+
 @app.route('/api/auth/register', methods=['POST', 'OPTIONS'])
 def register():
     if request.method == 'OPTIONS':
         return '', 204
     
-    data = request.json or {}
-    username = data.get('username', '').strip()
-    email = data.get('email', '').strip().lower()
-    password = data.get('password', '')
-    
-    if not username or len(username) < 3:
-        return jsonify({'error': 'Username must be at least 3 characters'}), 400
-    if not email or '@' not in email:
-        return jsonify({'error': 'Invalid email'}), 400
-    if not password or len(password) < 6:
-        return jsonify({'error': 'Password must be at least 6 characters'}), 400
-    
-    if User.query.filter_by(username=username).first():
-        return jsonify({'error': 'Username already taken'}), 409
-    if User.query.filter_by(email=email).first():
-        return jsonify({'error': 'Email already registered'}), 409
-    
-    user = User(email=email, username=username)
-    user.set_password(password)
-    db.session.add(user)
-    db.session.commit()
-    
-    token = create_token(user.id)
-    response = make_response(jsonify({
-        'token': token,
-        'user': user.to_dict()
-    }), 201)
-    
-    response.set_cookie('auth_token', token, httponly=True, secure=False, samesite='Lax', max_age=86400*7)
-    logger.info(f"✓ User registered: {username}")
-    return response
+    try:
+        data = request.get_json() or {}
+        username = (data.get('username') or '').strip()
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password') or ''
+        
+        if not username or len(username) < 3:
+            return jsonify({'error': 'Username min 3 chars'}), 400
+        if not email or '@' not in email:
+            return jsonify({'error': 'Invalid email'}), 400
+        if not password or len(password) < 6:
+            return jsonify({'error': 'Password min 6 chars'}), 400
+        
+        if User.query.filter_by(username=username).first():
+            return jsonify({'error': 'Username taken'}), 409
+        if User.query.filter_by(email=email).first():
+            return jsonify({'error': 'Email taken'}), 409
+        
+        user = User(username=username, email=email)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        
+        token = create_token(user.id)
+        response = jsonify({'token': token, 'user': user.to_dict()})
+        response.status_code = 201
+        logger.info(f"✓ User registered: {username}")
+        return response
+    except Exception as e:
+        logger.error(f"Register error: {e}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
 def login():
     if request.method == 'OPTIONS':
         return '', 204
     
-    data = request.json or {}
-    email = data.get('email', '').strip().lower()
-    password = data.get('password', '')
-    
-    if not email or not password:
-        return jsonify({'error': 'Email and password required'}), 400
-    
-    user = User.query.filter_by(email=email).first()
-    if not user or not user.check_password(password):
-        return jsonify({'error': 'Invalid credentials'}), 401
-    
-    token = create_token(user.id)
-    response = make_response(jsonify({
-        'token': token,
-        'user': user.to_dict()
-    }), 200)
-    
-    response.set_cookie('auth_token', token, httponly=True, secure=False, samesite='Lax', max_age=86400*7)
-    logger.info(f"✓ User logged in: {email}")
-    return response
+    try:
+        data = request.get_json() or {}
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password') or ''
+        
+        if not email or not password:
+            return jsonify({'error': 'Email and password required'}), 400
+        
+        user = User.query.filter_by(email=email).first()
+        if not user or not user.check_password(password):
+            return jsonify({'error': 'Invalid credentials'}), 401
+        
+        token = create_token(user.id)
+        logger.info(f"✓ User logged in: {email}")
+        return jsonify({'token': token, 'user': user.to_dict()}), 200
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/api/auth/logout', methods=['POST', 'OPTIONS'])
-def logout():
-    if request.method == 'OPTIONS':
-        return '', 204
-    
-    response = make_response(jsonify({'message': 'Logged out'}), 200)
-    response.set_cookie('auth_token', '', expires=0)
-    return response
 
 @app.route('/api/auth/guest', methods=['POST', 'OPTIONS'])
 def guest_login():
@@ -316,59 +288,45 @@ def guest_login():
         username = f"Guest_{uuid.uuid4().hex[:6].upper()}"
         temp_email = f"guest_{uuid.uuid4().hex[:8]}@temp.local"
         
-        user = User(email=temp_email, username=username)
+        user = User(username=username, email=temp_email)
         db.session.add(user)
         db.session.commit()
         
         token = create_token(user.id)
-        response = make_response(jsonify({
+        logger.info(f"✓ Guest created: {username}")
+        
+        return jsonify({
             'token': token,
             'user': user.to_dict(),
             'is_guest': True
-        }), 201)
-        
-        response.set_cookie('auth_token', token, httponly=True, secure=False, samesite='Lax', max_age=86400*7)
-        logger.info(f"✓ Guest created: {username}")
-        return response
+        }), 201
     except Exception as e:
-        logger.error(f"❌ Guest login error: {str(e)}")
+        logger.error(f"Guest login error: {e}")
         db.session.rollback()
         return jsonify({'error': f'Guest login failed: {str(e)}'}), 500
 
-@app.route('/api/user/<user_id>/stats', methods=['GET', 'OPTIONS'])
-def get_user_stats(user_id):
-    if request.method == 'OPTIONS':
-        return '', 204
-    
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
-    return jsonify(user.to_dict()), 200
 
-@app.route('/api/leaderboard', methods=['GET', 'OPTIONS'])
-def get_leaderboard():
-    if request.method == 'OPTIONS':
-        return '', 204
-    
-    limit = request.args.get('limit', 10, type=int)
-    users = User.query.order_by(User.wins.desc()).limit(limit).all()
-    return jsonify([{**u.to_dict(), 'rank': i+1} for i, u in enumerate(users)]), 200
+# ============================================================================
+# ROOMS API
+# ============================================================================
 
-@app.route('/api/rooms', methods=['POST', 'OPTIONS', 'GET'])
+@app.route('/api/rooms', methods=['GET', 'POST', 'OPTIONS'])
 def rooms_handler():
     if request.method == 'OPTIONS':
         return '', 204
     
-    if request.method == 'POST':
+    if request.method == 'GET':
         try:
-            data = request.json or {}
+            rooms = GameRoom.query.filter_by(is_public=True, status='waiting').limit(50).all()
+            return jsonify([r.to_dict() for r in rooms]), 200
+        except Exception as e:
+            logger.error(f"Get rooms error: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    else:  # POST
+        try:
+            data = request.get_json() or {}
             host_id = data.get('host_id')
-            
-            if not host_id:
-                temp_user = User(username=f"Host_{uuid.uuid4().hex[:6].upper()}")
-                db.session.add(temp_user)
-                db.session.commit()
-                host_id = temp_user.id
             
             room = GameRoom(
                 name=data.get('name', 'Game Room'),
@@ -382,55 +340,33 @@ def rooms_handler():
             db.session.add(room)
             db.session.commit()
             
-            logger.info(f"✓ Room created: {room.id} - {room.name}")
+            get_or_create_room(room.id)
+            logger.info(f"✓ Room created: {room.name}")
             return jsonify(room.to_dict()), 201
         except Exception as e:
-            logger.error(f"Error creating room: {e}")
+            logger.error(f"Create room error: {e}")
             db.session.rollback()
-            return jsonify({'error': f'Failed to create room: {str(e)}'}), 500
-    
-    else:  # GET
-        rooms_query = GameRoom.query.filter_by(is_public=True, status='waiting').limit(50)
-        rooms_list = []
-        for room in rooms_query:
-            try:
-                players = json.loads(room.players_data or '{}')
-            except (json.JSONDecodeError, TypeError):
-                players = {}
-            if players:
-                rooms_list.append(room)
-        return jsonify([room.to_dict() for room in rooms_list]), 200
+            return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/rooms/<room_id>', methods=['GET', 'OPTIONS'])
 def get_room(room_id):
     if request.method == 'OPTIONS':
         return '', 204
     
-    room = GameRoom.query.get(room_id)
-    if not room:
-        return jsonify({'error': 'Room not found'}), 404
-    
-    room_data = room.to_dict()
     try:
-        room_data['players'] = json.loads(room.players_data or '{}')
-        room_data['gameState'] = json.loads(room.game_state or '{}')
-    except (json.JSONDecodeError, TypeError):
-        room_data['players'] = {}
-        room_data['gameState'] = {}
-    
-    return jsonify(room_data), 200
+        room = GameRoom.query.get(room_id)
+        if not room:
+            return jsonify({'error': 'Room not found'}), 404
+        
+        data = room.to_dict()
+        data['players'] = json.loads(room.players_data or '{}')
+        data['gameState'] = json.loads(room.game_state or '{}')
+        return jsonify(data), 200
+    except Exception as e:
+        logger.error(f"Get room error: {e}")
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/print', methods=['GET'])
-def print_sheet():
-    return render_template('print.html')
-
-@app.route('/', methods=['GET'])
-def index():
-    return render_template('index.html')
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({'status': 'ok', 'timestamp': datetime.utcnow().isoformat()}), 200
 
 # ============================================================================
 # SOCKET.IO EVENTS
@@ -438,16 +374,17 @@ def health():
 
 @socketio.on('connect')
 def handle_connect():
-    sid = request.sid
-    logger.info(f"✓ Client connected: {sid}")
-    emit('connection_response', {'data': 'Connected', 'sid': sid})
+    logger.info(f"✓ Socket connected: {request.sid}")
+    emit('connection_response', {'data': 'Connected', 'sid': request.sid})
+
 
 @socketio.on('disconnect')
 def handle_disconnect():
     sid = request.sid
-    logger.info(f"✗ Client disconnected: {sid}")
+    logger.info(f"✗ Socket disconnected: {sid}")
     
-    for room_id, room in list(active_rooms.items()):
+    for room_id in list(active_rooms.keys()):
+        room = active_rooms[room_id]
         if sid in room.get('players', {}):
             del room['players'][sid]
             
@@ -457,16 +394,15 @@ def handle_disconnect():
                     db_room.players_data = json.dumps(room['players'])
                     if not room['players']:
                         db.session.delete(db_room)
-                        active_rooms.pop(room_id, None)
+                        del active_rooms[room_id]
                     db.session.commit()
-                except Exception as e:
-                    logger.error(f"DB sync error on disconnect: {e}")
+                except:
                     db.session.rollback()
             
-            socketio.emit('player_left', {
-                'player_count': len(room.get('players', {})),
-                'players': room.get('players', {})
+            emit('player_left', {
+                'player_count': len(room.get('players', {}))
             }, room=room_id)
+
 
 @socketio.on('join_room')
 def on_join_room(data):
@@ -480,21 +416,17 @@ def on_join_room(data):
         return
     
     room = get_or_create_room(room_id)
-    
     room['players'][sid] = {
         'sid': sid,
         'nickname': nickname,
         'role': None,
-        'alive': True,
-        'voted': False,
-        'vote_for': None
+        'alive': True
     }
     
     try:
         db_room.players_data = json.dumps(room['players'])
         db.session.commit()
-    except Exception as e:
-        logger.error(f"DB sync error on join: {e}")
+    except:
         db.session.rollback()
     
     join_room(room_id)
@@ -505,6 +437,7 @@ def on_join_room(data):
         'players': room['players'],
         'total': len(room['players'])
     }, room=room_id)
+
 
 @socketio.on('leave_room')
 def on_leave_room(data):
@@ -520,47 +453,18 @@ def on_leave_room(data):
                 db_room.players_data = json.dumps(active_rooms[room_id]['players'])
                 if not active_rooms[room_id]['players']:
                     db.session.delete(db_room)
-                    active_rooms.pop(room_id, None)
+                    del active_rooms[room_id]
                 db.session.commit()
-            except Exception as e:
-                logger.error(f"DB sync error on leave: {e}")
+            except:
                 db.session.rollback()
         
         leave_room(room_id)
-        emit('player_left', {
-            'player_count': len(active_rooms.get(room_id, {}).get('players', {}))
-        }, room=room_id)
+        emit('player_left', {'player_count': 0}, room=room_id)
 
-@socketio.on('chat_message')
-def on_chat(data):
-    room_id = data.get('room_id')
-    message = data.get('message', '').strip()
-    sid = request.sid
-    
-    if room_id not in active_rooms or sid not in active_rooms[room_id]['players']:
-        return
-    
-    room = active_rooms[room_id]
-    player = room['players'][sid]
-    
-    if room['phase'] != PHASE_DAY:
-        emit('error', {'message': 'Public chat only available during day phase'})
-        return
-    
-    chat_message = {
-        'from': player['nickname'],
-        'text': message,
-        'ts': datetime.utcnow().isoformat(),
-        'type': 'public'
-    }
-    
-    room['public_chat'].append(chat_message)
-    emit('chat_message', chat_message, room=room_id)
 
 @socketio.on('start_game')
 def on_start_game(data):
     room_id = data.get('room_id')
-    sid = request.sid
     
     if room_id not in active_rooms:
         emit('error', {'message': 'Room not found'})
@@ -568,48 +472,53 @@ def on_start_game(data):
     
     room = active_rooms[room_id]
     db_room = GameRoom.query.get(room_id)
+    
     if not db_room:
-        emit('error', {'message': 'Room not found in database'})
+        emit('error', {'message': 'DB room not found'})
         return
     
     players_list = list(room['players'].values())
-    player_count = len(players_list)
-    
-    if player_count < 4:
-        emit('error', {'message': f'Need 4+ players, got {player_count}'}, room=room_id)
+    if len(players_list) < 4:
+        emit('error', {'message': f'Need 4+ players, have {len(players_list)}'}, room=room_id)
         return
     
-    roles = distribute_roles(player_count, db_room.mafia_count, db_room.detective_count, db_room.doctor_count)
-    
-    if not roles:
-        emit('error', {'message': 'Invalid role configuration'}, room=room_id)
-        return
+    roles = ['mafia', 'mafia', 'detective', 'doctor'] + ['villager'] * (len(players_list) - 4)
+    random.shuffle(roles)
     
     sids = list(room['players'].keys())
     for i, player_sid in enumerate(sids):
         room['players'][player_sid]['role'] = roles[i]
     
-    room['phase'] = PHASE_NIGHT
+    room['phase'] = 'night'
     room['round'] = 1
-    room['phase_start_time'] = time.time()
+    
     db_room.status = 'playing'
     db_room.started_at = datetime.utcnow()
     
     try:
-        db_room.game_state = json.dumps({'phase': PHASE_NIGHT, 'round': 1})
+        db_room.game_state = json.dumps({'phase': 'night', 'round': 1})
         db.session.commit()
-    except Exception as e:
-        logger.error(f"DB error on game start: {e}")
+    except:
         db.session.rollback()
     
+    for player_sid, player in room['players'].items():
+        role_info = ROLES.get(player['role'], {})
+        socketio.emit('role_assigned', {
+            'role': player['role'],
+            'role_name': role_info.get('en', 'Unknown'),
+            'role_ar': role_info.get('ar', 'غير معروف'),
+            'icon': role_info.get('icon', '')
+        }, room=player_sid)
+    
     emit('game_started', {
-        'phase': PHASE_NIGHT,
+        'phase': 'night',
         'round': 1,
-        'message': '🌙 Night phase. Mafia, choose target!',
+        'message': '🌙 Night phase started',
         'players': room['players']
     }, room=room_id)
     
-    logger.info(f"🎮 Game started in {room_id} with {player_count} players")
+    logger.info(f"🎮 Game started in {room_id}")
+
 
 @socketio.on('night_action')
 def on_night_action(data):
@@ -629,22 +538,22 @@ def on_night_action(data):
         return
     
     player = room['players'][sid]
-    target_name = room['players'][target_sid]['nickname']
+    target = room['players'][target_sid]
     
-    if player['role'] == 'mafia' and action == 'kill':
+    if action == 'kill' and player['role'] == 'mafia':
         room['mafia_target'] = target_sid
-        room['night_actions_ready'][sid] = True
-        emit('action_feedback', {'message': f"🔫 Target: {target_name}"}, room=sid)
-    elif player['role'] == 'doctor' and action == 'heal':
+        emit('action_feedback', {'message': f"🔫 Target: {target['nickname']}"}, room=sid)
+    elif action == 'heal' and player['role'] == 'doctor':
         room['doctor_target'] = target_sid
-        room['night_actions_ready'][sid] = True
-        emit('action_feedback', {'message': f"🏥 Healing: {target_name}"}, room=sid)
-    elif player['role'] == 'detective' and action == 'investigate':
+        emit('action_feedback', {'message': f"🏥 Healing: {target['nickname']}"}, room=sid)
+    elif action == 'investigate' and player['role'] == 'detective':
         room['detective_target'] = target_sid
-        room['night_actions_ready'][sid] = True
-        target_role = room['players'][target_sid]['role']
-        is_mafia = target_role == 'mafia'
-        emit('investigation_result', {'target': target_name, 'is_mafia': is_mafia}, room=sid)
+        is_mafia = target['role'] == 'mafia'
+        emit('investigation_result', {
+            'target': target['nickname'],
+            'is_mafia': is_mafia
+        }, room=sid)
+
 
 @socketio.on('day_vote')
 def on_day_vote(data):
@@ -663,10 +572,32 @@ def on_day_vote(data):
         return
     
     room['day_votes'][sid] = vote_for_sid
+    
     emit('vote_cast', {
         'voter': room['players'][sid]['nickname'],
         'voted': room['players'][vote_for_sid]['nickname']
     }, room=room_id)
+
+
+@socketio.on('chat_message')
+def on_chat(data):
+    room_id = data.get('room_id')
+    message = data.get('message', '').strip()
+    sid = request.sid
+    
+    if room_id not in active_rooms or sid not in active_rooms[room_id]['players']:
+        return
+    
+    room = active_rooms[room_id]
+    player = room['players'][sid]
+    
+    emit('chat_message', {
+        'from': player['nickname'],
+        'text': message,
+        'ts': datetime.utcnow().isoformat(),
+        'type': 'public'
+    }, room=room_id)
+
 
 # ============================================================================
 # MAIN
@@ -677,6 +608,6 @@ if __name__ == '__main__':
         db.create_all()
         logger.info("✓ Database initialized")
     
-    logger.info("🎭 شكون لمافيا server starting...")
+    logger.info("🎭 Server starting on 0.0.0.0:5000")
     port = int(os.environ.get('PORT', 5000))
     socketio.run(app, host='0.0.0.0', port=port, debug=False)
