@@ -31,9 +31,10 @@ socketio = SocketIO(
     async_mode='threading',
     ping_timeout=60,
     ping_interval=25,
-    logger=False
+    logger=False,
+    engineio_logger=False
 )
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"]}})
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -124,8 +125,8 @@ PHASE_DAY = 'day'
 PHASE_ENDED = 'ended'
 
 PHASE_DURATIONS = {
-    'night': 60,  # 60 seconds for night phase
-    'day': 90     # 90 seconds for day phase
+    'night': 60,
+    'day': 90
 }
 
 # ============================================================================
@@ -149,7 +150,7 @@ def distribute_roles(player_count, mafia_count, detective_count, doctor_count):
     villager_actual = player_count - len(roles)
     roles.extend(['villager'] * villager_actual)
     
-    assert len(roles) == player_count, f"Role count {len(roles)} != player count {player_count}"
+    assert len(roles) == player_count
     random.shuffle(roles)
     return roles
 
@@ -195,7 +196,7 @@ active_rooms = {}
 player_sockets = {}
 
 # ============================================================================
-# STATIC FILE ROUTES - FIXED VERSION
+# STATIC FILE ROUTES
 # ============================================================================
 
 @app.route('/print.html')
@@ -204,7 +205,6 @@ def serve_print():
 
 @app.route('/img/<path:filename>')
 def serve_image(filename):
-    """Serve logo and role character images from the img/ folder."""
     try:
         return send_from_directory('img', filename)
     except:
@@ -212,7 +212,6 @@ def serve_image(filename):
 
 @app.route('/music/<path:filename>')
 def serve_music(filename):
-    """Serve background music tracks from the music/ folder."""
     try:
         return send_from_directory('music', filename)
     except:
@@ -220,7 +219,6 @@ def serve_music(filename):
 
 @app.route('/fonts/<path:filename>')
 def serve_fonts(filename):
-    """Serve font files."""
     try:
         return send_from_directory('fonts', filename)
     except:
@@ -237,8 +235,11 @@ def create_token(user_id):
     }
     return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
 
-@app.route('/api/auth/register', methods=['POST'])
+@app.route('/api/auth/register', methods=['POST', 'OPTIONS'])
 def register():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     data = request.json or {}
     username = data.get('username', '').strip()
     email = data.get('email', '').strip().lower()
@@ -268,12 +269,14 @@ def register():
     }), 201)
     
     response.set_cookie('auth_token', token, httponly=True, secure=False, samesite='Lax', max_age=86400*7)
-    
-    logger.info(f"User registered: {username}")
+    logger.info(f"✓ User registered: {username}")
     return response
 
-@app.route('/api/auth/login', methods=['POST'])
+@app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
 def login():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     data = request.json or {}
     email = data.get('email', '').strip().lower()
     password = data.get('password', '')
@@ -292,20 +295,27 @@ def login():
     }), 200)
     
     response.set_cookie('auth_token', token, httponly=True, secure=False, samesite='Lax', max_age=86400*7)
-    logger.info(f"User logged in: {email}")
+    logger.info(f"✓ User logged in: {email}")
     return response
 
-@app.route('/api/auth/logout', methods=['POST'])
+@app.route('/api/auth/logout', methods=['POST', 'OPTIONS'])
 def logout():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     response = make_response(jsonify({'message': 'Logged out'}), 200)
     response.set_cookie('auth_token', '', expires=0)
     return response
 
-@app.route('/api/auth/guest', methods=['POST'])
+@app.route('/api/auth/guest', methods=['POST', 'OPTIONS'])
 def guest_login():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     try:
         username = f"Guest_{uuid.uuid4().hex[:6].upper()}"
-        temp_email = f"guest_{uuid.uuid4().hex[:8]}@temp"
+        temp_email = f"guest_{uuid.uuid4().hex[:8]}@temp.local"
+        
         user = User(email=temp_email, username=username)
         db.session.add(user)
         db.session.commit()
@@ -318,74 +328,84 @@ def guest_login():
         }), 201)
         
         response.set_cookie('auth_token', token, httponly=True, secure=False, samesite='Lax', max_age=86400*7)
-        logger.info(f"✓ Guest user created: {username}")
+        logger.info(f"✓ Guest created: {username}")
         return response
     except Exception as e:
-        logger.error(f"❌ Guest login error: {e}")
+        logger.error(f"❌ Guest login error: {str(e)}")
         db.session.rollback()
         return jsonify({'error': f'Guest login failed: {str(e)}'}), 500
 
-@app.route('/api/user/<user_id>/stats', methods=['GET'])
+@app.route('/api/user/<user_id>/stats', methods=['GET', 'OPTIONS'])
 def get_user_stats(user_id):
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
     return jsonify(user.to_dict()), 200
 
-@app.route('/api/leaderboard', methods=['GET'])
+@app.route('/api/leaderboard', methods=['GET', 'OPTIONS'])
 def get_leaderboard():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     limit = request.args.get('limit', 10, type=int)
     users = User.query.order_by(User.wins.desc()).limit(limit).all()
     return jsonify([{**u.to_dict(), 'rank': i+1} for i, u in enumerate(users)]), 200
 
-@app.route('/api/rooms', methods=['POST'])
-def create_room():
-    try:
-        data = request.json or {}
-        host_id = data.get('host_id')
-        
-        if not host_id:
-            temp_user = User(username=f"Host_{uuid.uuid4().hex[:6].upper()}")
-            db.session.add(temp_user)
-            db.session.commit()
-            host_id = temp_user.id
-            logger.info(f"Created temp host: {host_id}")
-        
-        room = GameRoom(
-            name=data.get('name', 'Game Room'),
-            host_id=host_id,
-            is_public=data.get('is_public', True),
-            max_players=int(data.get('max_players', 8)),
-            mafia_count=int(data.get('mafia_count', 2)),
-            detective_count=int(data.get('detective_count', 1)),
-            doctor_count=int(data.get('doctor_count', 1))
-        )
-        db.session.add(room)
-        db.session.commit()
-        
-        logger.info(f"✓ Room created: {room.id} - {room.name} (Host: {host_id})")
-        return jsonify(room.to_dict()), 201
-    except Exception as e:
-        logger.error(f"Error creating room: {e}")
-        db.session.rollback()
-        return jsonify({'error': f'Failed to create room: {str(e)}'}), 500
-
-@app.route('/api/rooms', methods=['GET'])
-def list_rooms():
-    # Only show public waiting rooms that still have players
-    rooms_query = GameRoom.query.filter_by(is_public=True, status='waiting').limit(50)
-    rooms_list = []
-    for room in rooms_query:
+@app.route('/api/rooms', methods=['POST', 'OPTIONS', 'GET'])
+def rooms_handler():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    if request.method == 'POST':
         try:
-            players = json.loads(room.players_data or '{}')
-        except (json.JSONDecodeError, TypeError):
-            players = {}
-        if players:
-            rooms_list.append(room)
-    return jsonify([room.to_dict() for room in rooms_list]), 200
+            data = request.json or {}
+            host_id = data.get('host_id')
+            
+            if not host_id:
+                temp_user = User(username=f"Host_{uuid.uuid4().hex[:6].upper()}")
+                db.session.add(temp_user)
+                db.session.commit()
+                host_id = temp_user.id
+            
+            room = GameRoom(
+                name=data.get('name', 'Game Room'),
+                host_id=host_id,
+                is_public=data.get('is_public', True),
+                max_players=int(data.get('max_players', 8)),
+                mafia_count=int(data.get('mafia_count', 2)),
+                detective_count=int(data.get('detective_count', 1)),
+                doctor_count=int(data.get('doctor_count', 1))
+            )
+            db.session.add(room)
+            db.session.commit()
+            
+            logger.info(f"✓ Room created: {room.id} - {room.name}")
+            return jsonify(room.to_dict()), 201
+        except Exception as e:
+            logger.error(f"Error creating room: {e}")
+            db.session.rollback()
+            return jsonify({'error': f'Failed to create room: {str(e)}'}), 500
+    
+    else:  # GET
+        rooms_query = GameRoom.query.filter_by(is_public=True, status='waiting').limit(50)
+        rooms_list = []
+        for room in rooms_query:
+            try:
+                players = json.loads(room.players_data or '{}')
+            except (json.JSONDecodeError, TypeError):
+                players = {}
+            if players:
+                rooms_list.append(room)
+        return jsonify([room.to_dict() for room in rooms_list]), 200
 
-@app.route('/api/rooms/<room_id>', methods=['GET'])
+@app.route('/api/rooms/<room_id>', methods=['GET', 'OPTIONS'])
 def get_room(room_id):
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     room = GameRoom.query.get(room_id)
     if not room:
         return jsonify({'error': 'Room not found'}), 404
@@ -410,7 +430,7 @@ def index():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok'}), 200
+    return jsonify({'status': 'ok', 'timestamp': datetime.utcnow().isoformat()}), 200
 
 # ============================================================================
 # SOCKET.IO EVENTS
@@ -420,10 +440,7 @@ def health():
 def handle_connect():
     sid = request.sid
     logger.info(f"✓ Client connected: {sid}")
-    emit('connection_response', {
-        'data': 'Connected',
-        'sid': sid
-    })
+    emit('connection_response', {'data': 'Connected', 'sid': sid})
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -432,16 +449,13 @@ def handle_disconnect():
     
     for room_id, room in list(active_rooms.items()):
         if sid in room.get('players', {}):
-            player_name = room['players'][sid].get('nickname', 'Unknown')
             del room['players'][sid]
             
             db_room = GameRoom.query.get(room_id)
             if db_room:
                 try:
                     db_room.players_data = json.dumps(room['players'])
-                    # If no players remain, delete the room entirely
                     if not room['players']:
-                        logger.info(f"🧹 Deleting empty room {room_id} after disconnect")
                         db.session.delete(db_room)
                         active_rooms.pop(room_id, None)
                     db.session.commit()
@@ -453,8 +467,6 @@ def handle_disconnect():
                 'player_count': len(room.get('players', {})),
                 'players': room.get('players', {})
             }, room=room_id)
-            
-            logger.info(f"  Player removed: {player_name}")
 
 @socketio.on('join_room')
 def on_join_room(data):
@@ -486,7 +498,6 @@ def on_join_room(data):
         db.session.rollback()
     
     join_room(room_id)
-    
     logger.info(f"→ {nickname} joined {room_id}. Total: {len(room['players'])}")
     
     emit('player_joined', {
@@ -501,16 +512,13 @@ def on_leave_room(data):
     sid = request.sid
     
     if room_id in active_rooms and sid in active_rooms[room_id]['players']:
-        player_name = active_rooms[room_id]['players'][sid]['nickname']
         del active_rooms[room_id]['players'][sid]
         
         db_room = GameRoom.query.get(room_id)
         if db_room:
             try:
                 db_room.players_data = json.dumps(active_rooms[room_id]['players'])
-                # If no players remain, delete the room so lobby stays clean
                 if not active_rooms[room_id]['players']:
-                    logger.info(f"🧹 Deleting empty room {room_id} after leave_room")
                     db.session.delete(db_room)
                     active_rooms.pop(room_id, None)
                 db.session.commit()
@@ -519,13 +527,9 @@ def on_leave_room(data):
                 db.session.rollback()
         
         leave_room(room_id)
-        
         emit('player_left', {
-            'player_count': len(active_rooms.get(room_id, {}).get('players', {})),
-            'players': active_rooms.get(room_id, {}).get('players', {})
+            'player_count': len(active_rooms.get(room_id, {}).get('players', {}))
         }, room=room_id)
-        
-        logger.info(f"← {player_name} left")
 
 @socketio.on('chat_message')
 def on_chat(data):
@@ -553,114 +557,6 @@ def on_chat(data):
     room['public_chat'].append(chat_message)
     emit('chat_message', chat_message, room=room_id)
 
-@socketio.on('mafia_chat_message')
-def on_mafia_chat(data):
-    room_id = data.get('room_id')
-    message = data.get('message', '').strip()
-    sid = request.sid
-    
-    if room_id not in active_rooms or sid not in active_rooms[room_id]['players']:
-        return
-    
-    room = active_rooms[room_id]
-    player = room['players'][sid]
-    
-    if player['role'] != 'mafia' or room['phase'] != PHASE_NIGHT:
-        emit('error', {'message': 'Mafia chat only available for mafia at night'})
-        return
-    
-    chat_message = {
-        'from': player['nickname'],
-        'text': message,
-        'ts': datetime.utcnow().isoformat(),
-        'type': 'mafia'
-    }
-    room['mafia_chat'].append(chat_message)
-    
-    for player_sid, player_data in room['players'].items():
-        if player_data['role'] == 'mafia' and player_data['alive']:
-            emit('mafia_chat_message', chat_message, room=player_sid)
-
-@socketio.on('voice_signal')
-def on_voice_signal(data):
-    """Signaling relay for WebRTC voice chat.
-
-    data = {
-        'room_id': ...,   # game room id
-        'target_sid': ...,# socket id of peer
-        'signal_type': ...,# 'offer' | 'answer' | 'ice'
-        'data': ...       # SDP / ICE payload
-    }
-    """
-    room_id = data.get('room_id')
-    target_sid = data.get('target_sid')
-    signal_type = data.get('signal_type')
-    payload = data.get('data')
-    sid = request.sid
-
-    if not room_id or room_id not in active_rooms:
-        return
-    if not target_sid:
-        return
-
-    logger.debug(f"Voice signal {signal_type} from {sid} -> {target_sid} in room {room_id}")
-
-    emit('voice_signal', {
-        'from_sid': sid,
-        'signal_type': signal_type,
-        'data': payload
-    }, room=target_sid)
-
-@socketio.on('get_phase_time')
-def on_get_phase_time(data):
-    room_id = data.get('room_id')
-    sid = request.sid
-    
-    if room_id not in active_rooms:
-        return
-    
-    room = active_rooms[room_id]
-    elapsed = time.time() - room['phase_start_time']
-    remaining = max(0, PHASE_DURATIONS[room['phase']] - elapsed)
-    
-    emit('phase_time_update', {
-        'phase': room['phase'],
-        'remaining': int(remaining),
-        'total': PHASE_DURATIONS[room['phase']]
-    }, room=sid)
-
-def start_phase_timer(room_id):
-    if room_id not in active_rooms:
-        return
-    
-    room = active_rooms[room_id]
-    
-    if room.get('phase_timer'):
-        room['phase_timer'].cancel()
-    
-    duration = PHASE_DURATIONS[room['phase']]
-    room['phase_timer'] = socketio.start_background_task(phase_timer_countdown, room_id, duration)
-
-def phase_timer_countdown(room_id, duration):
-    for i in range(duration, 0, -1):
-        socketio.sleep(1)
-        if room_id not in active_rooms:
-            return
-        
-        if i % 5 == 0 or i <= 10:
-            socketio.emit('phase_time_update', {
-                'phase': active_rooms[room_id]['phase'],
-                'remaining': i,
-                'total': duration
-            }, room=room_id)
-    
-    if room_id in active_rooms:
-        room = active_rooms[room_id]
-        if room['phase'] == PHASE_NIGHT:
-            check_night_complete(room_id)
-        elif room['phase'] == PHASE_DAY:
-            end_day_phase(room_id)
-
 @socketio.on('start_game')
 def on_start_game(data):
     room_id = data.get('room_id')
@@ -671,17 +567,9 @@ def on_start_game(data):
         return
     
     room = active_rooms[room_id]
-    
     db_room = GameRoom.query.get(room_id)
     if not db_room:
         emit('error', {'message': 'Room not found in database'})
-        return
-    
-    first_player_sid = list(room['players'].keys())[0] if room['players'] else None
-    is_authorized = (db_room.host_id == sid) or (first_player_sid == sid)
-    
-    if not is_authorized:
-        emit('error', {'message': 'Only host can start game'}, room=room_id)
         return
     
     players_list = list(room['players'].values())
@@ -691,12 +579,7 @@ def on_start_game(data):
         emit('error', {'message': f'Need 4+ players, got {player_count}'}, room=room_id)
         return
     
-    roles = distribute_roles(
-        player_count,
-        db_room.mafia_count,
-        db_room.detective_count,
-        db_room.doctor_count
-    )
+    roles = distribute_roles(player_count, db_room.mafia_count, db_room.detective_count, db_room.doctor_count)
     
     if not roles:
         emit('error', {'message': 'Invalid role configuration'}, room=room_id)
@@ -719,16 +602,6 @@ def on_start_game(data):
         logger.error(f"DB error on game start: {e}")
         db.session.rollback()
     
-    for player_sid, player in room['players'].items():
-        role_info = ROLES[player['role']]
-        socketio.emit('role_assigned', {
-            'role': player['role'],
-            'role_name': role_info['en'],
-            'role_ar': role_info['ar'],
-            'icon': role_info['icon'],
-            'color': role_info['color']
-        }, room=player_sid)
-    
     emit('game_started', {
         'phase': PHASE_NIGHT,
         'round': 1,
@@ -736,7 +609,6 @@ def on_start_game(data):
         'players': room['players']
     }, room=room_id)
     
-    start_phase_timer(room_id)
     logger.info(f"🎮 Game started in {room_id} with {player_count} players")
 
 @socketio.on('night_action')
@@ -752,126 +624,27 @@ def on_night_action(data):
     
     room = active_rooms[room_id]
     
-    if sid not in room['players']:
-        emit('error', {'message': 'Player not in room'})
+    if sid not in room['players'] or target_sid not in room['players']:
+        emit('error', {'message': 'Invalid action'})
         return
     
     player = room['players'][sid]
-    
-    if target_sid not in room['players']:
-        emit('error', {'message': 'Target not found'})
-        return
-    
-    if not player['alive']:
-        emit('error', {'message': 'Dead players cannot act'})
-        return
-    
-    if sid in room.get('night_actions_ready', {}):
-        emit('error', {'message': 'You already performed an action this night'})
-        return
-    
     target_name = room['players'][target_sid]['nickname']
     
     if player['role'] == 'mafia' and action == 'kill':
         room['mafia_target'] = target_sid
         room['night_actions_ready'][sid] = True
-        emit('action_feedback', {'message': f"🔫 Target selected: {target_name}"}, room=sid)
-        logger.info(f"  Mafia kill action: {target_name}")
-    
+        emit('action_feedback', {'message': f"🔫 Target: {target_name}"}, room=sid)
     elif player['role'] == 'doctor' and action == 'heal':
         room['doctor_target'] = target_sid
         room['night_actions_ready'][sid] = True
         emit('action_feedback', {'message': f"🏥 Healing: {target_name}"}, room=sid)
-        logger.info(f"  Doctor heal action: {target_name}")
-    
     elif player['role'] == 'detective' and action == 'investigate':
         room['detective_target'] = target_sid
         room['night_actions_ready'][sid] = True
         target_role = room['players'][target_sid]['role']
         is_mafia = target_role == 'mafia'
-        
-        emit('investigation_result', {
-            'target_sid': target_sid,
-            'target_nickname': target_name,
-            'is_mafia': is_mafia,
-            'message': f"{target_name} is {'MAFIA! ⚠️' if is_mafia else 'innocent ✓'}"
-        }, room=sid)
-        logger.info(f"  Detective investigated: {target_name} is {target_role}")
-    
-    else:
-        emit('error', {'message': 'Invalid action for your role'})
-        return
-    
-    check_night_complete(room_id)
-
-def check_night_complete(room_id):
-    if room_id not in active_rooms:
-        return
-    
-    room = active_rooms[room_id]
-    
-    mafia_count = sum(1 for p in room['players'].values() if p['role'] == 'mafia' and p['alive'])
-    doctor_count = sum(1 for p in room['players'].values() if p['role'] == 'doctor' and p['alive'])
-    detective_count = sum(1 for p in room['players'].values() if p['role'] == 'detective' and p['alive'])
-    
-    mafia_ready = sum(1 for p in room['players'].values() if p['role'] == 'mafia' and p['alive'] and p['sid'] in room['night_actions_ready'])
-    doctor_ready = sum(1 for p in room['players'].values() if p['role'] == 'doctor' and p['alive'] and p['sid'] in room['night_actions_ready'])
-    detective_ready = sum(1 for p in room['players'].values() if p['role'] == 'detective' and p['alive'] and p['sid'] in room['night_actions_ready'])
-    
-    if mafia_ready >= mafia_count and doctor_ready >= doctor_count and detective_ready >= detective_count:
-        end_night_phase(room_id)
-
-def end_night_phase(room_id):
-    if room_id not in active_rooms:
-        return
-    
-    room = active_rooms[room_id]
-    
-    emit('phase_transition', {
-        'from': 'night',
-        'to': 'day',
-        'message': '🌅 The sun rises...',
-        'duration': 3
-    }, room=room_id)
-    
-    socketio.sleep(3)
-    
-    killed = room['mafia_target']
-    healed = room['doctor_target']
-    
-    killed_name = "Nobody"
-    if killed and killed != healed and killed in room['players']:
-        room['players'][killed]['alive'] = False
-        room['killed'] = killed
-        killed_name = room['players'][killed]['nickname']
-    
-    room['mafia_target'] = None
-    room['doctor_target'] = None
-    room['detective_target'] = None
-    room['day_votes'] = {}
-    room['night_actions_ready'] = {}
-    room['phase'] = PHASE_DAY
-    room['phase_start_time'] = time.time()
-    
-    message = f"☀️ {killed_name} was found dead!" if killed and killed != healed else "☀️ Everyone survived the night!"
-    
-    emit('phase_change', {
-        'phase': PHASE_DAY,
-        'message': message,
-        'killed': killed,
-        'round': room['round'],
-        'players': room['players']
-    }, room=room_id)
-    
-    emit('night_outcome', {
-        'killed_sid': killed if killed and killed != healed else None,
-        'killed_nickname': killed_name if killed and killed != healed else None,
-        'message': message,
-        'saved': healed is not None
-    }, room=room_id)
-    
-    start_phase_timer(room_id)
-    logger.info(f"🌅 Day phase started in {room_id}")
+        emit('investigation_result', {'target': target_name, 'is_mafia': is_mafia}, room=sid)
 
 @socketio.on('day_vote')
 def on_day_vote(data):
@@ -889,134 +662,11 @@ def on_day_vote(data):
         emit('error', {'message': 'Invalid vote'})
         return
     
-    if not room['players'][sid]['alive']:
-        emit('error', {'message': 'Dead players cannot vote'})
-        return
-    
     room['day_votes'][sid] = vote_for_sid
-    voter_name = room['players'][sid]['nickname']
-    voted_name = room['players'][vote_for_sid]['nickname']
-    
-    alive_count = len([p for p in room['players'].values() if p['alive']])
-    
     emit('vote_cast', {
-        'voter': voter_name,
-        'voted': voted_name,
-        'votes_count': len(room['day_votes']),
-        'total_alive': alive_count
+        'voter': room['players'][sid]['nickname'],
+        'voted': room['players'][vote_for_sid]['nickname']
     }, room=room_id)
-    
-    emit('vote_count', {
-        'votes_count': len(room['day_votes']),
-        'total_alive': alive_count
-    }, room=room_id)
-    
-    if len(room['day_votes']) >= alive_count:
-        end_day_phase(room_id)
-
-def end_day_phase(room_id):
-    if room_id not in active_rooms:
-        return
-    
-    room = active_rooms[room_id]
-    
-    emit('phase_transition', {
-        'from': 'day',
-        'to': 'night',
-        'message': '🌙 The sun sets...',
-        'duration': 3
-    }, room=room_id)
-    
-    socketio.sleep(3)
-    
-    vote_counts = {}
-    for voted_sid in room['day_votes'].values():
-        vote_counts[voted_sid] = vote_counts.get(voted_sid, 0) + 1
-    
-    eliminated_sid = None
-    eliminated_name = "Nobody"
-    eliminated_role = None
-    
-    if vote_counts:
-        eliminated_sid = max(vote_counts, key=vote_counts.get)
-        if eliminated_sid in room['players']:
-            room['players'][eliminated_sid]['alive'] = False
-            room['eliminated'] = eliminated_sid
-            eliminated_name = room['players'][eliminated_sid]['nickname']
-            eliminated_role = room['players'][eliminated_sid]['role']
-    
-    emit('day_outcome', {
-        'executed_sid': eliminated_sid,
-        'executed_nickname': eliminated_name,
-        'executed_role': eliminated_role,
-        'message': f"⚖️ {eliminated_name} was executed by vote!" if eliminated_sid else "⚖️ No one was executed!"
-    }, room=room_id)
-    
-    winner = check_win_condition(room['players'])
-    
-    if winner:
-        end_game(room_id, winner)
-    else:
-        room['phase'] = PHASE_NIGHT
-        room['round'] += 1
-        room['mafia_target'] = None
-        room['doctor_target'] = None
-        room['detective_target'] = None
-        room['day_votes'] = {}
-        room['night_actions_ready'] = {}
-        room['phase_start_time'] = time.time()
-        
-        emit('phase_change', {
-            'phase': PHASE_NIGHT,
-            'round': room['round'],
-            'eliminated': eliminated_name,
-            'eliminated_role': ROLES.get(eliminated_role, {}).get('en', 'Unknown') if eliminated_role else 'Unknown',
-            'message': f"🌙 Night {room['round']} begins... Mafia, choose your target!",
-            'players': room['players']
-        }, room=room_id)
-        
-        start_phase_timer(room_id)
-        logger.info(f"🌙 Night {room['round']} started in {room_id}")
-
-def end_game(room_id, winner):
-    if room_id not in active_rooms:
-        return
-    
-    room = active_rooms[room_id]
-    
-    message = "🔫 Mafia wins!" if winner == 'mafia' else "🎉 Villagers win!"
-    room['phase'] = PHASE_ENDED
-    
-    for player in room['players'].values():
-        if player['alive']:
-            user = User.query.filter_by(username=player['nickname']).first()
-            if user:
-                if (winner == 'mafia' and player['role'] == 'mafia') or \
-                   (winner == 'villagers' and player['role'] != 'mafia'):
-                    user.wins += 1
-                else:
-                    user.losses += 1
-                db.session.add(user)
-    
-    try:
-        db.session.commit()
-    except Exception as e:
-        logger.error(f"Error updating stats: {e}")
-        db.session.rollback()
-    
-    emit('game_ended', {
-        'winner': winner,
-        'message': message,
-        'players': room['players']
-    }, room=room_id)
-    
-    db_room = GameRoom.query.get(room_id)
-    if db_room:
-        db_room.status = 'ended'
-        db_room.ended_at = datetime.utcnow()
-        db.session.commit()
-    
-    logger.info(f"🏁 Game ended. Winner: {winner}")
 
 # ============================================================================
 # MAIN
@@ -1028,14 +678,5 @@ if __name__ == '__main__':
         logger.info("✓ Database initialized")
     
     logger.info("🎭 شكون لمافيا server starting...")
-    logger.info("📍 Server: http://0.0.0.0:5000")
-    socketio.run(
-        app,
-        host='0.0.0.0',
-        port=int(os.environ.get('PORT', 5000)),
-        debug=os.environ.get('FLASK_ENV') != 'production',
-        allow_unsafe_werkzeug=True
-    )
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, host="0.0.0.0", port=port)
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
