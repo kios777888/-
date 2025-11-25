@@ -1,20 +1,20 @@
-Flask==3.0.2
+Flask==2.3.3
 Flask-CORS==4.0.0
-Flask-SQLAlchemy==3.1.1
-Flask-SocketIO==5.3.6
-python-socketio==5.10.0
-python-engineio==4.9.0
-python-dotenv==1.0.1
-PyJWT==2.10.1
-Werkzeug==3.0.3
-gunicorn==23.0.0
-SQLAlchemy==2.0.29
-eventlet==0.33.3
+Flask-SQLAlchemy==3.0.5
+Flask-SocketIO==5.3.4
+python-socketio==5.8.0
+python-engineio==4.7.1
+python-dotenv==1.0.0
+PyJWT==2.8.0
+Werkzeug==2.3.7
+gunicorn==21.2.0
+SQLAlchemy==2.0.23
+eventlet==0.33.0
 
-# Dependencies
-click==8.1.8
-blinker==1.8.2
-simple-websocket==1.0.0
-greenlet==3.0.3
-itsdangerous==2.2.0
-typing-extensions==4.12.2
+# Dependencies with compatible versions
+click==8.1.7
+blinker==1.6.2
+simple-websocket==0.10.0
+greenlet==2.0.2
+itsdangerous==2.1.2
+typing-extensions==4.7.1
