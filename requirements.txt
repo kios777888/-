@@ -1,4 +1,4 @@
-Flask==2.3.3
+Flask==3.0.0
 Flask-CORS==4.0.0
 Flask-SQLAlchemy==3.1.1
 Flask-SocketIO==5.3.6
@@ -6,12 +6,12 @@ python-socketio==5.10.0
 python-engineio==4.8.0
 python-dotenv==1.0.0
 PyJWT==2.8.0
-Werkzeug==2.3.7
+Werkzeug==3.0.1
 gunicorn==21.2.0
-SQLAlchemy==2.0.35
+SQLAlchemy==2.0.23
 eventlet==0.33.3
 click==8.1.7
-blinker==1.6.2
+blinker==1.7.0
 simple-websocket==1.0.0
 itsdangerous==2.1.2
-typing-extensions==4.12.2
+typing-extensions==4.8.0
