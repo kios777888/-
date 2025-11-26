@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎭 شكون لمافيا</title>
+    <title>شكون لمافيا</title>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
@@ -921,6 +921,153 @@
             font-size: 13px;
         }
 
+        /* ========== SETTINGS MODAL ========== */
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .settings-modal.show {
+            display: flex;
+        }
+
+        .settings-content {
+            background: #ffffff;
+            border: 8px solid #000000;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            text-align: right;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+
+        .settings-section {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e5e5e5;
+        }
+
+        .settings-section h3 {
+            font-size: 20px;
+            font-weight: bold;
+            color: #000000;
+            margin-bottom: 15px;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .setting-label {
+            font-size: 16px;
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .setting-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: #000000;
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+
+        .volume-slider {
+            width: 120px;
+            height: 5px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #ddd;
+            outline: none;
+            border-radius: 5px;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #000000;
+            cursor: pointer;
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #000000;
+            cursor: pointer;
+            border: none;
+        }
+
+        .music-selector {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #000;
+            border-radius: 6px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 14px;
+        }
+
         /* ========== TOAST SYSTEM ========== */
         #toasts {
             position: fixed;
@@ -1161,6 +1308,123 @@
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="settings-modal">
+        <div class="settings-content">
+            <button class="close-modal" onclick="closeSettings()">✕</button>
+            <h2 class="modal-title">الإعدادات</h2>
+            
+            <div class="settings-section">
+                <h3>🔊 الصوت والموسيقى</h3>
+                
+                <div class="setting-item">
+                    <span class="setting-label">الموسيقى</span>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="musicToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <span class="setting-label">صوت الموسيقى</span>
+                    <div class="setting-control">
+                        <input type="range" min="0" max="100" value="50" class="volume-slider" id="musicVolume">
+                        <span id="musicVolumeValue">50%</span>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <span class="setting-label">المؤثرات الصوتية</span>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="sfxToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <span class="setting-label">صوت المؤثرات</span>
+                    <div class="setting-control">
+                        <input type="range" min="0" max="100" value="70" class="volume-slider" id="sfxVolume">
+                        <span id="sfxVolumeValue">70%</span>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <span class="setting-label">اختيار الموسيقى</span>
+                    <div class="setting-control">
+                        <select class="music-selector" id="musicSelector">
+                            <option value="1">موسيقى الغموض</option>
+                            <option value="2">موسيقى التشويق</option>
+                            <option value="3">موسيقى الليل</option>
+                            <option value="4">موسيقى المافيا</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>🎮 إعدادات اللعبة</h3>
+                
+                <div class="setting-item">
+                    <span class="setting-label">الرسوم المتحركة</span>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="animationsToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <span class="setting-label">الإشعارات</span>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="notificationsToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <span class="setting-label">الوضع الليلي</span>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="darkModeToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>🌐 اللغة</h3>
+                
+                <div class="setting-item">
+                    <span class="setting-label">لغة الواجهة</span>
+                    <div class="setting-control">
+                        <select class="music-selector" id="languageSelector">
+                            <option value="ar">العربية</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button onclick="saveSettings()">
+                    <span class="button_top">💾 حفظ الإعدادات</span>
+                </button>
+                <button onclick="resetSettings()">
+                    <span class="button_top">🔄 إعادة تعيين</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Role Reveal Overlay -->
     <div class="role-overlay" id="roleOverlay">
         <div class="role-overlay-backdrop"></div>
@@ -1203,25 +1467,96 @@
             theme: 'dark',
             rooms: [],
             authToken: localStorage.getItem('authToken') || null,
-            chatMessages: []
+            chatMessages: [],
+            settings: {
+                musicEnabled: true,
+                musicVolume: 50,
+                sfxEnabled: true,
+                sfxVolume: 70,
+                selectedMusic: 1,
+                animationsEnabled: true,
+                notificationsEnabled: true,
+                darkModeEnabled: true,
+                language: 'ar'
+            }
         };
+
+        // ========== MUSIC SYSTEM ==========
+        let bgMusic = null;
+        let currentMusic = null;
+
+        function initMusic() {
+            if (bgMusic) return;
+            
+            // Create audio element
+            bgMusic = new Audio();
+            bgMusic.loop = true;
+            bgMusic.volume = APP.settings.musicVolume / 100;
+            
+            // Set initial music
+            changeMusic(APP.settings.selectedMusic);
+            
+            // Try to play if music is enabled
+            if (APP.settings.musicEnabled) {
+                playMusic();
+            }
+        }
+
+        function changeMusic(musicId) {
+            if (!bgMusic) return;
+            
+            // Map music IDs to actual file paths
+            const musicFiles = {
+                1: '/music/FREE Dark Piano Sample PackLoop Kit  CASH  Free Piano Loop Kit 2025 (Werenoi, Dark Trap).mp3',
+                2: '/music/mystery.mp3',
+                3: '/music/night.mp3',
+                4: '/music/mafia.mp3'
+            };
+            
+            const musicFile = musicFiles[musicId] || musicFiles[1];
+            
+            // Only change if it's a different track
+            if (currentMusic !== musicId) {
+                bgMusic.src = musicFile;
+                currentMusic = musicId;
+                
+                // If music is enabled, play the new track
+                if (APP.settings.musicEnabled && APP.musicOn) {
+                    playMusic();
+                }
+            }
+        }
+
+        function playMusic() {
+            if (!bgMusic) return;
+            
+            try {
+                bgMusic.play().catch(error => {
+                    console.log('Auto-play prevented, will play after user interaction');
+                    // Music will start after user interaction
+                });
+            } catch (error) {
+                console.error('Error playing music:', error);
+            }
+        }
+
+        function pauseMusic() {
+            if (bgMusic) {
+                bgMusic.pause();
+            }
+        }
+
+        function setMusicVolume(volume) {
+            if (bgMusic) {
+                bgMusic.volume = volume / 100;
+            }
+        }
 
         // ========== VOICE / WEBRTC STATE ==========
         const VOICE = {
             localStream: null,
             peers: {} // sid -> { pc, audioEl }
         };
-
-        // ========== BACKGROUND MUSIC ==========
-        let bgMusic = null;
-
-        function initMusic() {
-            if (bgMusic) return;
-            // Use your track inside the /music folder
-            bgMusic = new Audio('/music/FREE Dark Piano Sample PackLoop Kit  CASH  Free Piano Loop Kit 2025 (Werenoi, Dark Trap).mp3');
-            bgMusic.loop = true;
-            bgMusic.volume = 0.15; // lower volume so it doesn't dominate voices
-        }
 
         const t = {
             ar: {
@@ -1291,6 +1626,15 @@
             document.getElementById('loginModal').classList.remove('show');
         }
 
+        function openSettings() {
+            loadSettingsToUI();
+            document.getElementById('settingsModal').classList.add('show');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('show');
+        }
+
         function guestMode() {
             closePlayModal();
             document.getElementById('guestNameModal').classList.add('show');
@@ -1315,6 +1659,104 @@
             APP.user = { username: name, isGuest: true };
             closeGuestNameModal();
             goPlay();
+        }
+
+        // ========== SETTINGS FUNCTIONS ==========
+        function loadSettings() {
+            const savedSettings = localStorage.getItem('mafiaGameSettings');
+            if (savedSettings) {
+                APP.settings = { ...APP.settings, ...JSON.parse(savedSettings) };
+            }
+            
+            // Apply settings
+            applySettings();
+        }
+
+        function saveSettings() {
+            // Get values from UI
+            APP.settings.musicEnabled = document.getElementById('musicToggle').checked;
+            APP.settings.musicVolume = parseInt(document.getElementById('musicVolume').value);
+            APP.settings.sfxEnabled = document.getElementById('sfxToggle').checked;
+            APP.settings.sfxVolume = parseInt(document.getElementById('sfxVolume').value);
+            APP.settings.selectedMusic = parseInt(document.getElementById('musicSelector').value);
+            APP.settings.animationsEnabled = document.getElementById('animationsToggle').checked;
+            APP.settings.notificationsEnabled = document.getElementById('notificationsToggle').checked;
+            APP.settings.darkModeEnabled = document.getElementById('darkModeToggle').checked;
+            APP.settings.language = document.getElementById('languageSelector').value;
+            
+            // Save to localStorage
+            localStorage.setItem('mafiaGameSettings', JSON.stringify(APP.settings));
+            
+            // Apply settings
+            applySettings();
+            
+            // Close settings modal
+            closeSettings();
+            
+            showToast('تم حفظ الإعدادات', 'success');
+        }
+
+        function loadSettingsToUI() {
+            document.getElementById('musicToggle').checked = APP.settings.musicEnabled;
+            document.getElementById('musicVolume').value = APP.settings.musicVolume;
+            document.getElementById('musicVolumeValue').textContent = APP.settings.musicVolume + '%';
+            document.getElementById('sfxToggle').checked = APP.settings.sfxEnabled;
+            document.getElementById('sfxVolume').value = APP.settings.sfxVolume;
+            document.getElementById('sfxVolumeValue').textContent = APP.settings.sfxVolume + '%';
+            document.getElementById('musicSelector').value = APP.settings.selectedMusic;
+            document.getElementById('animationsToggle').checked = APP.settings.animationsEnabled;
+            document.getElementById('notificationsToggle').checked = APP.settings.notificationsEnabled;
+            document.getElementById('darkModeToggle').checked = APP.settings.darkModeEnabled;
+            document.getElementById('languageSelector').value = APP.settings.language;
+        }
+
+        function applySettings() {
+            // Apply music settings
+            if (APP.settings.musicEnabled) {
+                if (!bgMusic) initMusic();
+                setMusicVolume(APP.settings.musicVolume);
+                if (APP.musicOn) {
+                    playMusic();
+                }
+            } else {
+                pauseMusic();
+            }
+            
+            // Change music if needed
+            changeMusic(APP.settings.selectedMusic);
+            
+            // Apply language
+            APP.language = APP.settings.language;
+            
+            // Apply theme
+            if (APP.settings.darkModeEnabled) {
+                document.body.style.background = 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%)';
+            } else {
+                document.body.style.background = 'linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 50%, #f0f0f0 100%)';
+            }
+            
+            // Re-render to apply language changes
+            render();
+        }
+
+        function resetSettings() {
+            // Reset to defaults
+            APP.settings = {
+                musicEnabled: true,
+                musicVolume: 50,
+                sfxEnabled: true,
+                sfxVolume: 70,
+                selectedMusic: 1,
+                animationsEnabled: true,
+                notificationsEnabled: true,
+                darkModeEnabled: true,
+                language: 'ar'
+            };
+            
+            // Update UI
+            loadSettingsToUI();
+            
+            showToast('تم إعادة تعيين الإعدادات', 'info');
         }
 
         // ========== SOCKET INITIALIZATION ==========
@@ -1975,11 +2417,16 @@
         }
 
         // ========== EVENT HANDLERS ==========
+        function getApiUrl(endpoint) {
+            // Use window.location.origin to get full URL (protocol + domain)
+            return `${window.location.origin}/api${endpoint}`;
+        }
+
         function handleLogin() {
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
 
-            fetch(`http://${window.location.hostname}:5000/api/auth/login`, {
+            fetch(getApiUrl('/auth/login'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
@@ -1998,15 +2445,18 @@
                     goHome();
                 }
             })
-            .catch(e => showToast('Login failed', 'error'));
+            .catch(e => {
+                console.error('Login error:', e);
+                showToast('Login failed: ' + e.message, 'error');
+            });
         }
 
-        function handleRegister() {
+        function createAccount() {
             const username = document.getElementById('username').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
-            fetch(`http://${window.location.hostname}:5000/api/auth/register`, {
+            fetch(getApiUrl('/auth/register'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, email, password })
@@ -2025,14 +2475,16 @@
                     goHome();
                 }
             })
-            .catch(e => showToast('Registration failed', 'error'));
+            .catch(e => {
+                console.error('Register error:', e);
+                showToast('Registration failed: ' + e.message, 'error');
+            });
         }
 
         function loginAsGuest() {
             console.log('🎮 Guest login attempt...');
-            const url = `http://${window.location.hostname}:5000/api/auth/guest`;
             
-            fetch(url, { 
+            fetch(getApiUrl('/auth/guest'), { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             })
@@ -2040,6 +2492,7 @@
             .then(data => {
                 if (data.error) {
                     showToast(data.error, 'error');
+                    console.error('Guest login error:', data.error);
                     return;
                 }
                 APP.user = data.user;
@@ -2082,7 +2535,7 @@
         }
 
         function loadRooms() {
-            fetch(`http://${window.location.hostname}:5000/api/rooms`)
+            fetch(getApiUrl('/rooms'))
                 .then(r => r.json())
                 .then(rooms => {
                     APP.rooms = rooms;
@@ -2090,7 +2543,7 @@
                 })
                 .catch(e => {
                     console.error('Failed to load rooms:', e);
-                    showToast('Failed to load rooms', 'error');
+                    showToast('Failed to load rooms: ' + e.message, 'error');
                 });
         }
 
@@ -2101,7 +2554,7 @@
             const name = (nameInput?.value || 'Game Room').trim() || 'Game Room';
             const max_players = parseInt(maxPlayersInput?.value || '8', 10);
 
-            fetch(`http://${window.location.hostname}:5000/api/rooms`, {
+            fetch(getApiUrl('/rooms'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -2122,12 +2575,13 @@
                 render();
             })
             .catch(e => {
-                showToast('Failed to create room', 'error');
+                console.error('Create room error:', e);
+                showToast('Failed to create room: ' + e.message, 'error');
             });
         }
 
         function joinRoom(roomId) {
-            fetch(`http://${window.location.hostname}:5000/api/rooms/${roomId}`)
+            fetch(getApiUrl(`/rooms/${roomId}`))
                 .then(r => r.json())
                 .then(room => {
                     APP.activeRoom = room;
@@ -2137,7 +2591,8 @@
                     render();
                 })
                 .catch(e => {
-                    showToast('Failed to join room', 'error');
+                    console.error('Join room error:', e);
+                    showToast('Failed to join room: ' + e.message, 'error');
                 });
         }
 
@@ -2236,7 +2691,7 @@
         }
 
         function toggleSettings() {
-            showToast('الإعدادات', 'info');
+            openSettings();
         }
 
         function toggleMute() {
@@ -2246,20 +2701,16 @@
         }
 
         function toggleMusic() {
-            initMusic();
-            if (!bgMusic) return;
-
+            if (!bgMusic) initMusic();
+            
             APP.musicOn = !APP.musicOn;
             document.getElementById('musicIcon').textContent = APP.musicOn ? '🔊' : '🎵';
             
             try {
                 if (APP.musicOn) {
-                    bgMusic.play().catch(() => {
-                        APP.musicOn = false;
-                        showToast('تعذر تشغيل الموسيقى تلقائياً', 'error');
-                    });
+                    playMusic();
                 } else {
-                    bgMusic.pause();
+                    pauseMusic();
                 }
             } catch (e) {
                 console.error('Music toggle error', e);
@@ -2416,6 +2867,21 @@
 
         // ========== INITIALIZATION ==========
         document.addEventListener('DOMContentLoaded', () => {
+            // Load settings first
+            loadSettings();
+            
+            // Initialize music
+            initMusic();
+            
+            // Set up volume slider event listeners
+            document.getElementById('musicVolume')?.addEventListener('input', function() {
+                document.getElementById('musicVolumeValue').textContent = this.value + '%';
+            });
+            
+            document.getElementById('sfxVolume')?.addEventListener('input', function() {
+                document.getElementById('sfxVolumeValue').textContent = this.value + '%';
+            });
+            
             if (APP.authToken) {
                 APP.user = { username: 'User', id: 'temp-id' };
                 initSocket();
@@ -2450,13 +2916,16 @@
         window.closeGuestNameModal = closeGuestNameModal;
         window.closeAccountModal = closeAccountModal;
         window.closeLoginModal = closeLoginModal;
+        window.openSettings = openSettings;
+        window.closeSettings = closeSettings;
+        window.saveSettings = saveSettings;
+        window.resetSettings = resetSettings;
         window.guestMode = guestMode;
         window.newAccount = newAccount;
         window.showLogin = showLogin;
         window.startGuest = startGuest;
         window.createAccount = createAccount;
         window.handleLogin = handleLogin;
-        window.handleRegister = handleRegister;
         window.loginAsGuest = loginAsGuest;
         window.logout = logout;
         window.createRoom = createRoom;
@@ -2478,6 +2947,9 @@
         // Close modals when clicking outside
         window.onclick = function(event) {
             if (event.target.classList && event.target.classList.contains('modal')) {
+                event.target.classList.remove('show');
+            }
+            if (event.target.classList && event.target.classList.contains('settings-modal')) {
                 event.target.classList.remove('show');
             }
         };
