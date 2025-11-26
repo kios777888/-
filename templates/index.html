@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>شكون لمافيا</title>
+    <title>🎭 شكون لمافيا</title>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
@@ -294,6 +294,8 @@
             border-radius: 8px;
             font-size: 16px;
             font-family: 'Cairo', sans-serif;
+            color: #000000 !important;
+            background: #ffffff !important;
         }
 
         .close-modal {
@@ -708,17 +710,18 @@
             flex: 1;
             display: flex;
             flex-direction: column;
+            height: 400px;
         }
 
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            max-height: 400px;
             padding: 1rem;
             background: rgba(0, 0, 0, 0.05);
             border-radius: 8px;
             margin-bottom: 1rem;
             border: 2px solid #000000;
+            height: 300px;
         }
 
         .chat-message {
@@ -727,6 +730,7 @@
             border-radius: 6px;
             background: #f5f5f5;
             border-left: 3px solid #000000;
+            color: #000000;
         }
 
         .chat-message.self {
@@ -806,7 +810,7 @@
             border: 2px solid #000000;
             border-radius: 6px;
             padding: 0.75rem;
-            color: #000000;
+            color: #000000 !important;
             font-family: 'Cairo', sans-serif;
         }
 
@@ -919,6 +923,8 @@
             border-radius: 6px;
             font-family: 'Cairo', sans-serif;
             font-size: 13px;
+            color: #000000 !important;
+            background: #ffffff !important;
         }
 
         /* ========== SETTINGS MODAL ========== */
@@ -1147,6 +1153,40 @@
             50% { background: rgba(245, 158, 11, 0.5); }
         }
 
+        /* ========== LOADING STYLES ========== */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: white;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         /* ========== RESPONSIVE DESIGN ========== */
         @media (max-width: 1024px) {
             .game-layout {
@@ -1224,6 +1264,12 @@
 
     <div id="root"></div>
     <div id="toasts"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div id="loadingMessage">جاري التحميل...</div>
+    </div>
 
     <!-- Play Modal -->
     <div id="playModal" class="modal">
@@ -1352,18 +1398,6 @@
                         <span id="sfxVolumeValue">70%</span>
                     </div>
                 </div>
-                
-                <div class="setting-item">
-                    <span class="setting-label">اختيار الموسيقى</span>
-                    <div class="setting-control">
-                        <select class="music-selector" id="musicSelector">
-                            <option value="1">موسيقى الغموض</option>
-                            <option value="2">موسيقى التشويق</option>
-                            <option value="3">موسيقى الليل</option>
-                            <option value="4">موسيقى المافيا</option>
-                        </select>
-                    </div>
-                </div>
             </div>
             
             <div class="settings-section">
@@ -1386,30 +1420,6 @@
                             <input type="checkbox" id="notificationsToggle" checked>
                             <span class="toggle-slider"></span>
                         </label>
-                    </div>
-                </div>
-                
-                <div class="setting-item">
-                    <span class="setting-label">الوضع الليلي</span>
-                    <div class="setting-control">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="darkModeToggle" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="settings-section">
-                <h3>🌐 اللغة</h3>
-                
-                <div class="setting-item">
-                    <span class="setting-label">لغة الواجهة</span>
-                    <div class="setting-control">
-                        <select class="music-selector" id="languageSelector">
-                            <option value="ar">العربية</option>
-                            <option value="en">English</option>
-                        </select>
                     </div>
                 </div>
             </div>
@@ -1473,57 +1483,26 @@
                 musicVolume: 50,
                 sfxEnabled: true,
                 sfxVolume: 70,
-                selectedMusic: 1,
                 animationsEnabled: true,
-                notificationsEnabled: true,
-                darkModeEnabled: true,
-                language: 'ar'
-            }
+                notificationsEnabled: true
+            },
+            loading: false
         };
 
         // ========== MUSIC SYSTEM ==========
         let bgMusic = null;
-        let currentMusic = null;
 
         function initMusic() {
             if (bgMusic) return;
             
-            // Create audio element
-            bgMusic = new Audio();
+            // Create audio element with the correct path
+            bgMusic = new Audio('/game-music.mp3');
             bgMusic.loop = true;
             bgMusic.volume = APP.settings.musicVolume / 100;
-            
-            // Set initial music
-            changeMusic(APP.settings.selectedMusic);
             
             // Try to play if music is enabled
             if (APP.settings.musicEnabled) {
                 playMusic();
-            }
-        }
-
-        function changeMusic(musicId) {
-            if (!bgMusic) return;
-            
-            // Map music IDs to actual file paths
-            const musicFiles = {
-                1: '/music/FREE Dark Piano Sample PackLoop Kit  CASH  Free Piano Loop Kit 2025 (Werenoi, Dark Trap).mp3',
-                2: '/music/mystery.mp3',
-                3: '/music/night.mp3',
-                4: '/music/mafia.mp3'
-            };
-            
-            const musicFile = musicFiles[musicId] || musicFiles[1];
-            
-            // Only change if it's a different track
-            if (currentMusic !== musicId) {
-                bgMusic.src = musicFile;
-                currentMusic = musicId;
-                
-                // If music is enabled, play the new track
-                if (APP.settings.musicEnabled && APP.musicOn) {
-                    playMusic();
-                }
             }
         }
 
@@ -1550,6 +1529,18 @@
             if (bgMusic) {
                 bgMusic.volume = volume / 100;
             }
+        }
+
+        // ========== LOADING SYSTEM ==========
+        function showLoading(message = 'جاري التحميل...') {
+            APP.loading = true;
+            document.getElementById('loadingMessage').textContent = message;
+            document.getElementById('loadingOverlay').classList.add('show');
+        }
+
+        function hideLoading() {
+            APP.loading = false;
+            document.getElementById('loadingOverlay').classList.remove('show');
         }
 
         // ========== VOICE / WEBRTC STATE ==========
@@ -1678,11 +1669,8 @@
             APP.settings.musicVolume = parseInt(document.getElementById('musicVolume').value);
             APP.settings.sfxEnabled = document.getElementById('sfxToggle').checked;
             APP.settings.sfxVolume = parseInt(document.getElementById('sfxVolume').value);
-            APP.settings.selectedMusic = parseInt(document.getElementById('musicSelector').value);
             APP.settings.animationsEnabled = document.getElementById('animationsToggle').checked;
             APP.settings.notificationsEnabled = document.getElementById('notificationsToggle').checked;
-            APP.settings.darkModeEnabled = document.getElementById('darkModeToggle').checked;
-            APP.settings.language = document.getElementById('languageSelector').value;
             
             // Save to localStorage
             localStorage.setItem('mafiaGameSettings', JSON.stringify(APP.settings));
@@ -1703,11 +1691,8 @@
             document.getElementById('sfxToggle').checked = APP.settings.sfxEnabled;
             document.getElementById('sfxVolume').value = APP.settings.sfxVolume;
             document.getElementById('sfxVolumeValue').textContent = APP.settings.sfxVolume + '%';
-            document.getElementById('musicSelector').value = APP.settings.selectedMusic;
             document.getElementById('animationsToggle').checked = APP.settings.animationsEnabled;
             document.getElementById('notificationsToggle').checked = APP.settings.notificationsEnabled;
-            document.getElementById('darkModeToggle').checked = APP.settings.darkModeEnabled;
-            document.getElementById('languageSelector').value = APP.settings.language;
         }
 
         function applySettings() {
@@ -1722,20 +1707,7 @@
                 pauseMusic();
             }
             
-            // Change music if needed
-            changeMusic(APP.settings.selectedMusic);
-            
-            // Apply language
-            APP.language = APP.settings.language;
-            
-            // Apply theme
-            if (APP.settings.darkModeEnabled) {
-                document.body.style.background = 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%)';
-            } else {
-                document.body.style.background = 'linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 50%, #f0f0f0 100%)';
-            }
-            
-            // Re-render to apply language changes
+            // Re-render to apply changes
             render();
         }
 
@@ -1746,11 +1718,8 @@
                 musicVolume: 50,
                 sfxEnabled: true,
                 sfxVolume: 70,
-                selectedMusic: 1,
                 animationsEnabled: true,
-                notificationsEnabled: true,
-                darkModeEnabled: true,
-                language: 'ar'
+                notificationsEnabled: true
             };
             
             // Update UI
@@ -1759,11 +1728,17 @@
             showToast('تم إعادة تعيين الإعدادات', 'info');
         }
 
+        // ========== API URL HELPER ==========
+        function getApiUrl(endpoint) {
+            // Use window.location.origin to get full URL (protocol + domain)
+            return `${window.location.origin}/api${endpoint}`;
+        }
+
         // ========== SOCKET INITIALIZATION ==========
         function initSocket() {
             if (APP.socket) return;
             
-            const socketUrl = window.location.origin || `http://${window.location.hostname}:5000`;
+            const socketUrl = window.location.origin;
             console.log('🔌 Connecting to socket:', socketUrl);
             
             APP.socket = io(socketUrl, {
@@ -1957,20 +1932,19 @@
         }
 
         // ========== CHAT HELPERS ==========
+        let currentChatTab = 'public';
+        let chatMessages = {
+            public: [],
+            mafia: []
+        };
+
         function appendChatMessage(data) {
-            const chatBox = document.getElementById('chatBox');
-            if (!chatBox) return;
-
-            const msgEl = document.createElement('div');
-            msgEl.className = 'chat-message';
-            msgEl.innerHTML = `
-                <span class="chat-from">${data.from}:</span>
-                <span class="chat-text">${data.text}</span>
-                <span class="chat-ts">${new Date(data.ts).toLocaleTimeString()}</span>
-            `;
-
-            chatBox.appendChild(msgEl);
-            chatBox.scrollTop = chatBox.scrollHeight;
+            if (!chatMessages.public) chatMessages.public = [];
+            chatMessages.public.push({ ...data, type: 'public' });
+            
+            if (currentChatTab === 'public') {
+                render();
+            }
         }
 
         function sendChatMessage() {
@@ -2230,12 +2204,6 @@
         }
 
         // ========== ENHANCED CHAT SYSTEM ==========
-        let currentChatTab = 'public';
-        let chatMessages = {
-            public: [],
-            mafia: []
-        };
-
         function renderEnhancedChatPanel() {
             const isMafia = APP.myRole && APP.myRole.role === 'mafia';
             const isNight = APP.gameState && APP.gameState.phase === 'night';
@@ -2417,11 +2385,6 @@
         }
 
         // ========== EVENT HANDLERS ==========
-        function getApiUrl(endpoint) {
-            // Use window.location.origin to get full URL (protocol + domain)
-            return `${window.location.origin}/api${endpoint}`;
-        }
-
         function handleLogin() {
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
@@ -2483,6 +2446,7 @@
 
         function loginAsGuest() {
             console.log('🎮 Guest login attempt...');
+            showLoading('جاري الدخول كضيف...');
             
             fetch(getApiUrl('/auth/guest'), { 
                 method: 'POST',
@@ -2490,6 +2454,7 @@
             })
             .then(r => r.json())
             .then(data => {
+                hideLoading();
                 if (data.error) {
                     showToast(data.error, 'error');
                     console.error('Guest login error:', data.error);
@@ -2503,6 +2468,7 @@
                 goPlay();
             })
             .catch(e => {
+                hideLoading();
                 console.error('❌ Guest login error:', e);
                 showToast('Guest login failed: ' + e.message, 'error');
             });
@@ -2535,55 +2501,75 @@
         }
 
         function loadRooms() {
+            showLoading('جاري تحميل الغرف...');
+            
             fetch(getApiUrl('/rooms'))
                 .then(r => r.json())
                 .then(rooms => {
+                    hideLoading();
                     APP.rooms = rooms;
                     render();
                 })
                 .catch(e => {
+                    hideLoading();
                     console.error('Failed to load rooms:', e);
                     showToast('Failed to load rooms: ' + e.message, 'error');
                 });
         }
 
         function createRoom() {
+            showLoading('جاري إنشاء الغرفة...');
+            
             const nameInput = document.getElementById('roomNameInput');
             const maxPlayersInput = document.getElementById('roomMaxPlayers');
 
-            const name = (nameInput?.value || 'Game Room').trim() || 'Game Room';
+            const name = (nameInput?.value || 'غرفتي').trim();
             const max_players = parseInt(maxPlayersInput?.value || '8', 10);
 
             fetch(getApiUrl('/rooms'), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${APP.authToken}`
+                },
                 body: JSON.stringify({
                     name,
-                    host_id: APP.user?.id,
                     max_players,
                     mafia_count: 2,
                     detective_count: 1,
                     doctor_count: 1
                 })
             })
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
+                return r.json();
+            })
             .then(room => {
+                hideLoading();
                 APP.activeRoom = room;
                 if (APP.socket) {
-                    APP.socket.emit('join_room', { room_id: room.id, nickname: APP.user.username });
+                    APP.socket.emit('join_room', { 
+                        room_id: room.id, 
+                        nickname: APP.user.username 
+                    });
                 }
+                showToast('تم إنشاء الغرفة بنجاح!', 'success');
                 render();
             })
             .catch(e => {
+                hideLoading();
                 console.error('Create room error:', e);
-                showToast('Failed to create room: ' + e.message, 'error');
+                showToast('فشل إنشاء الغرفة: ' + e.message, 'error');
             });
         }
 
         function joinRoom(roomId) {
+            showLoading('جاري الانضمام للغرفة...');
+            
             fetch(getApiUrl(`/rooms/${roomId}`))
                 .then(r => r.json())
                 .then(room => {
+                    hideLoading();
                     APP.activeRoom = room;
                     if (APP.socket) {
                         APP.socket.emit('join_room', { room_id: roomId, nickname: APP.user.username });
@@ -2591,6 +2577,7 @@
                     render();
                 })
                 .catch(e => {
+                    hideLoading();
                     console.error('Join room error:', e);
                     showToast('Failed to join room: ' + e.message, 'error');
                 });
@@ -2697,7 +2684,24 @@
         function toggleMute() {
             APP.micMuted = !APP.micMuted;
             document.getElementById('micIcon').textContent = APP.micMuted ? '🔇' : '🎙️';
-            showToast(APP.micMuted ? 'تم كتم الميكروفون' : 'الميكروفون شغال', 'info');
+            
+            if (APP.micMuted) {
+                // Mute all audio tracks
+                if (VOICE.localStream) {
+                    VOICE.localStream.getAudioTracks().forEach(track => {
+                        track.enabled = false;
+                    });
+                }
+                showToast('تم كتم الميكروفون', 'info');
+            } else {
+                // Unmute all audio tracks
+                if (VOICE.localStream) {
+                    VOICE.localStream.getAudioTracks().forEach(track => {
+                        track.enabled = true;
+                    });
+                }
+                showToast('الميكروفون شغال', 'info');
+            }
         }
 
         function toggleMusic() {
@@ -2725,7 +2729,11 @@
             
             try {
                 VOICE.localStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: true, 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }, 
                     video: false 
                 });
                 console.log('🎤 Got local audio stream');
@@ -2739,7 +2747,10 @@
 
         function createPeerConnection(targetSid) {
             const pc = new RTCPeerConnection({
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
             });
 
             // Add local stream
@@ -2754,11 +2765,16 @@
                 const audio = document.createElement('audio');
                 audio.srcObject = event.streams[0];
                 audio.autoplay = true;
+                audio.volume = 0.7;
                 
                 if (!VOICE.peers[targetSid]) {
                     VOICE.peers[targetSid] = {};
                 }
                 VOICE.peers[targetSid].audioEl = audio;
+                
+                // Add to DOM (hidden) to ensure it plays
+                audio.style.display = 'none';
+                document.body.appendChild(audio);
             };
 
             // ICE candidate handling
@@ -2770,6 +2786,14 @@
                         signal_type: 'ice',
                         data: event.candidate
                     });
+                }
+            };
+
+            // Handle connection state changes
+            pc.onconnectionstatechange = () => {
+                console.log(`Connection state with ${targetSid}: ${pc.connectionState}`);
+                if (pc.connectionState === 'connected') {
+                    showToast(`Voice connected with ${targetSid}`, 'success');
                 }
             };
 
@@ -2850,6 +2874,9 @@
                 chatMessages.mafia = [];
                 currentChatTab = 'public';
                 
+                // Initialize voice chat for all players
+                connectVoicePeers();
+                
                 render();
             });
 
@@ -2874,12 +2901,13 @@
             initMusic();
             
             // Set up volume slider event listeners
-            document.getElementById('musicVolume')?.addEventListener('input', function() {
-                document.getElementById('musicVolumeValue').textContent = this.value + '%';
-            });
-            
-            document.getElementById('sfxVolume')?.addEventListener('input', function() {
-                document.getElementById('sfxVolumeValue').textContent = this.value + '%';
+            document.addEventListener('input', function(e) {
+                if (e.target.id === 'musicVolume') {
+                    document.getElementById('musicVolumeValue').textContent = e.target.value + '%';
+                    setMusicVolume(e.target.value);
+                } else if (e.target.id === 'sfxVolume') {
+                    document.getElementById('sfxVolumeValue').textContent = e.target.value + '%';
+                }
             });
             
             if (APP.authToken) {
