@@ -1870,9 +1870,14 @@
                 render();
             });
 
-            // Chat
+            // Chat - FIXED: Allow chat before game starts
             APP.socket.on('chat_message', (data) => {
-                appendChatMessage(data);
+                if (!chatMessages.public) chatMessages.public = [];
+                chatMessages.public.push({ ...data, type: 'public' });
+                
+                if (currentChatTab === 'public') {
+                    render();
+                }
             });
 
             APP.socket.on('vote_cast', (data) => {
@@ -1937,15 +1942,6 @@
             public: [],
             mafia: []
         };
-
-        function appendChatMessage(data) {
-            if (!chatMessages.public) chatMessages.public = [];
-            chatMessages.public.push({ ...data, type: 'public' });
-            
-            if (currentChatTab === 'public') {
-                render();
-            }
-        }
 
         function sendChatMessage() {
             const input = document.getElementById('chatInput');
@@ -2044,10 +2040,8 @@
 
             // Waiting room layout (before game starts)
             if (!APP.gameState || phase === 'waiting') {
-                const isHost = APP.activeRoom && (
-                    APP.activeRoom.host_id === APP.user?.id || 
-                    (APP.players.length > 0 && APP.players[0].sid === APP.mySid)
-                );
+                // FIXED: Check if current user is host
+                const isHost = APP.activeRoom && APP.activeRoom.host_id === APP.mySid;
                 
                 return `<div class="game-room-container">
                     <div class="game-header">${APP.activeRoom?.name || 'Game Room'}</div>
@@ -2207,6 +2201,7 @@
         function renderEnhancedChatPanel() {
             const isMafia = APP.myRole && APP.myRole.role === 'mafia';
             const isNight = APP.gameState && APP.gameState.phase === 'night';
+            const isWaiting = !APP.gameState || APP.gameState.phase === 'waiting';
             
             return `
                 <div class="chat-system">
@@ -2217,7 +2212,7 @@
                                     onclick="switchChatTab('public')">
                                 Public
                             </button>
-                            ${isMafia ? `
+                            ${isMafia && !isWaiting ? `
                                 <button class="chat-tab ${currentChatTab === 'mafia' ? 'active' : ''} ${!isNight ? 'disabled' : ''}" 
                                         onclick="switchChatTab('mafia')">
                                     🔫 Mafia
@@ -2290,8 +2285,9 @@
         function switchChatTab(tab) {
             const isMafia = APP.myRole && APP.myRole.role === 'mafia';
             const isNight = APP.gameState && APP.gameState.phase === 'night';
+            const isWaiting = !APP.gameState || APP.gameState.phase === 'waiting';
             
-            if (tab === 'mafia' && (!isMafia || !isNight)) {
+            if (tab === 'mafia' && (!isMafia || !isNight || isWaiting)) {
                 showToast('Mafia chat only available for mafia at night', 'error');
                 return;
             }
@@ -2302,7 +2298,7 @@
 
         function getChatPlaceholder() {
             if (!APP.gameState || APP.gameState.phase === 'waiting') {
-                return "Chat will be available when game starts...";
+                return "Chat with other players while waiting...";
             }
             
             if (currentChatTab === 'mafia') {
@@ -2318,7 +2314,7 @@
 
         function getChatPlaceholderText() {
             if (!APP.gameState || APP.gameState.phase === 'waiting') {
-                return "Wait for the game to start to begin chatting!";
+                return "Start chatting with other players!";
             }
             
             if (currentChatTab === 'mafia') {
@@ -2328,8 +2324,9 @@
         }
 
         function isChatDisabled() {
+            // FIXED: Chat is always enabled in waiting phase
             if (!APP.gameState || APP.gameState.phase === 'waiting') {
-                return true;
+                return false;
             }
             
             if (currentChatTab === 'mafia') {
@@ -2353,11 +2350,6 @@
 
             const message = input.value.trim();
             input.value = '';
-
-            if (!APP.gameState || APP.gameState.phase === 'waiting') {
-                showToast('Chat is not available before game starts', 'error');
-                return;
-            }
 
             if (currentChatTab === 'mafia') {
                 APP.socket.emit('mafia_chat_message', {
@@ -2547,6 +2539,9 @@
             .then(room => {
                 hideLoading();
                 APP.activeRoom = room;
+                // FIXED: Set the current user as host
+                APP.activeRoom.host_id = APP.mySid;
+                
                 if (APP.socket) {
                     APP.socket.emit('join_room', { 
                         room_id: room.id, 
@@ -2586,6 +2581,12 @@
         function startGame() {
             if (!APP.activeRoom) {
                 showToast('No active room', 'error');
+                return;
+            }
+            
+            // FIXED: Double-check that user is host
+            if (APP.activeRoom.host_id !== APP.mySid) {
+                showToast('Only the host can start the game', 'error');
                 return;
             }
             
