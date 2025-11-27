@@ -146,17 +146,7 @@
             padding: 2rem;
         }
 
-        .home-card {
-            background: rgba(255, 255, 255, 0.95);
-            border: 8px solid #000000;
-            border-radius: 20px;
-            padding: 3rem;
-            max-width: 500px;
-            width: 100%;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-            position: relative;
-            text-align: center;
-        }
+       
 
         .home-logo {
             width: 200px;
@@ -165,10 +155,8 @@
             animation: float 3s ease-in-out infinite;
             margin: 0 auto 2rem;
             display: block;
-            border: 5px solid #000000;
             border-radius: 50%;
             padding: 10px;
-            background: white;
         }
 
         @keyframes float {
@@ -294,8 +282,6 @@
             border-radius: 8px;
             font-size: 16px;
             font-family: 'Cairo', sans-serif;
-            color: #000000 !important;
-            background: #ffffff !important;
         }
 
         .close-modal {
@@ -710,18 +696,17 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            height: 400px;
         }
 
         .chat-messages {
             flex: 1;
             overflow-y: auto;
+            max-height: 400px;
             padding: 1rem;
             background: rgba(0, 0, 0, 0.05);
             border-radius: 8px;
             margin-bottom: 1rem;
             border: 2px solid #000000;
-            height: 300px;
         }
 
         .chat-message {
@@ -730,7 +715,6 @@
             border-radius: 6px;
             background: #f5f5f5;
             border-left: 3px solid #000000;
-            color: #000000;
         }
 
         .chat-message.self {
@@ -810,7 +794,7 @@
             border: 2px solid #000000;
             border-radius: 6px;
             padding: 0.75rem;
-            color: #000000 !important;
+            color: #000000;
             font-family: 'Cairo', sans-serif;
         }
 
@@ -923,155 +907,6 @@
             border-radius: 6px;
             font-family: 'Cairo', sans-serif;
             font-size: 13px;
-            color: #000000 !important;
-            background: #ffffff !important;
-        }
-
-        /* ========== SETTINGS MODAL ========== */
-        .settings-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 100;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .settings-modal.show {
-            display: flex;
-        }
-
-        .settings-content {
-            background: #ffffff;
-            border: 8px solid #000000;
-            border-radius: 15px;
-            padding: 30px;
-            max-width: 500px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            text-align: right;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-            position: relative;
-        }
-
-        .settings-section {
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e5e5e5;
-        }
-
-        .settings-section h3 {
-            font-size: 20px;
-            font-weight: bold;
-            color: #000000;
-            margin-bottom: 15px;
-        }
-
-        .setting-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .setting-label {
-            font-size: 16px;
-            font-weight: bold;
-            color: #000000;
-        }
-
-        .setting-control {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 24px;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 24px;
-        }
-
-        .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 16px;
-            width: 16px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-
-        input:checked + .toggle-slider {
-            background-color: #000000;
-        }
-
-        input:checked + .toggle-slider:before {
-            transform: translateX(26px);
-        }
-
-        .volume-slider {
-            width: 120px;
-            height: 5px;
-            -webkit-appearance: none;
-            appearance: none;
-            background: #ddd;
-            outline: none;
-            border-radius: 5px;
-        }
-
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #000000;
-            cursor: pointer;
-        }
-
-        .volume-slider::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #000000;
-            cursor: pointer;
-            border: none;
-        }
-
-        .music-selector {
-            width: 100%;
-            padding: 8px;
-            border: 2px solid #000;
-            border-radius: 6px;
-            font-family: 'Cairo', sans-serif;
-            font-size: 14px;
         }
 
         /* ========== TOAST SYSTEM ========== */
@@ -1153,40 +988,6 @@
             50% { background: rgba(245, 158, 11, 0.5); }
         }
 
-        /* ========== LOADING STYLES ========== */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 999;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            color: white;
-        }
-
-        .loading-overlay.show {
-            display: flex;
-        }
-
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
-            margin-bottom: 20px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
         /* ========== RESPONSIVE DESIGN ========== */
         @media (max-width: 1024px) {
             .game-layout {
@@ -1264,12 +1065,6 @@
 
     <div id="root"></div>
     <div id="toasts"></div>
-
-    <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="loading-overlay">
-        <div class="loading-spinner"></div>
-        <div id="loadingMessage">جاري التحميل...</div>
-    </div>
 
     <!-- Play Modal -->
     <div id="playModal" class="modal">
@@ -1354,87 +1149,6 @@
         </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="settings-modal">
-        <div class="settings-content">
-            <button class="close-modal" onclick="closeSettings()">✕</button>
-            <h2 class="modal-title">الإعدادات</h2>
-            
-            <div class="settings-section">
-                <h3>🔊 الصوت والموسيقى</h3>
-                
-                <div class="setting-item">
-                    <span class="setting-label">الموسيقى</span>
-                    <div class="setting-control">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="musicToggle" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="setting-item">
-                    <span class="setting-label">صوت الموسيقى</span>
-                    <div class="setting-control">
-                        <input type="range" min="0" max="100" value="50" class="volume-slider" id="musicVolume">
-                        <span id="musicVolumeValue">50%</span>
-                    </div>
-                </div>
-                
-                <div class="setting-item">
-                    <span class="setting-label">المؤثرات الصوتية</span>
-                    <div class="setting-control">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="sfxToggle" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="setting-item">
-                    <span class="setting-label">صوت المؤثرات</span>
-                    <div class="setting-control">
-                        <input type="range" min="0" max="100" value="70" class="volume-slider" id="sfxVolume">
-                        <span id="sfxVolumeValue">70%</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="settings-section">
-                <h3>🎮 إعدادات اللعبة</h3>
-                
-                <div class="setting-item">
-                    <span class="setting-label">الرسوم المتحركة</span>
-                    <div class="setting-control">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="animationsToggle" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="setting-item">
-                    <span class="setting-label">الإشعارات</span>
-                    <div class="setting-control">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="notificationsToggle" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="modal-buttons">
-                <button onclick="saveSettings()">
-                    <span class="button_top">💾 حفظ الإعدادات</span>
-                </button>
-                <button onclick="resetSettings()">
-                    <span class="button_top">🔄 إعادة تعيين</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Role Reveal Overlay -->
     <div class="role-overlay" id="roleOverlay">
         <div class="role-overlay-backdrop"></div>
@@ -1477,77 +1191,25 @@
             theme: 'dark',
             rooms: [],
             authToken: localStorage.getItem('authToken') || null,
-            chatMessages: [],
-            settings: {
-                musicEnabled: true,
-                musicVolume: 50,
-                sfxEnabled: true,
-                sfxVolume: 70,
-                animationsEnabled: true,
-                notificationsEnabled: true
-            },
-            loading: false
+            chatMessages: []
         };
-
-        // ========== MUSIC SYSTEM ==========
-        let bgMusic = null;
-
-        function initMusic() {
-            if (bgMusic) return;
-            
-            // Create audio element with the correct path
-            bgMusic = new Audio('/game-music.mp3');
-            bgMusic.loop = true;
-            bgMusic.volume = APP.settings.musicVolume / 100;
-            
-            // Try to play if music is enabled
-            if (APP.settings.musicEnabled) {
-                playMusic();
-            }
-        }
-
-        function playMusic() {
-            if (!bgMusic) return;
-            
-            try {
-                bgMusic.play().catch(error => {
-                    console.log('Auto-play prevented, will play after user interaction');
-                    // Music will start after user interaction
-                });
-            } catch (error) {
-                console.error('Error playing music:', error);
-            }
-        }
-
-        function pauseMusic() {
-            if (bgMusic) {
-                bgMusic.pause();
-            }
-        }
-
-        function setMusicVolume(volume) {
-            if (bgMusic) {
-                bgMusic.volume = volume / 100;
-            }
-        }
-
-        // ========== LOADING SYSTEM ==========
-        function showLoading(message = 'جاري التحميل...') {
-            APP.loading = true;
-            document.getElementById('loadingMessage').textContent = message;
-            document.getElementById('loadingOverlay').classList.add('show');
-        }
-
-        function hideLoading() {
-            APP.loading = false;
-            document.getElementById('loadingOverlay').classList.remove('show');
-        }
 
         // ========== VOICE / WEBRTC STATE ==========
         const VOICE = {
             localStream: null,
             peers: {} // sid -> { pc, audioEl }
         };
+
+        // ========== BACKGROUND MUSIC ==========
+        let bgMusic = null;
+
+        function initMusic() {
+            if (bgMusic) return;
+            // Use your track inside the /music folder
+            bgMusic = new Audio('/music/FREE Dark Piano Sample PackLoop Kit  CASH  Free Piano Loop Kit 2025 (Werenoi, Dark Trap).mp3');
+            bgMusic.loop = true;
+            bgMusic.volume = 0.15; // lower volume so it doesn't dominate voices
+        }
 
         const t = {
             ar: {
@@ -1617,15 +1279,6 @@
             document.getElementById('loginModal').classList.remove('show');
         }
 
-        function openSettings() {
-            loadSettingsToUI();
-            document.getElementById('settingsModal').classList.add('show');
-        }
-
-        function closeSettings() {
-            document.getElementById('settingsModal').classList.remove('show');
-        }
-
         function guestMode() {
             closePlayModal();
             document.getElementById('guestNameModal').classList.add('show');
@@ -1652,93 +1305,11 @@
             goPlay();
         }
 
-        // ========== SETTINGS FUNCTIONS ==========
-        function loadSettings() {
-            const savedSettings = localStorage.getItem('mafiaGameSettings');
-            if (savedSettings) {
-                APP.settings = { ...APP.settings, ...JSON.parse(savedSettings) };
-            }
-            
-            // Apply settings
-            applySettings();
-        }
-
-        function saveSettings() {
-            // Get values from UI
-            APP.settings.musicEnabled = document.getElementById('musicToggle').checked;
-            APP.settings.musicVolume = parseInt(document.getElementById('musicVolume').value);
-            APP.settings.sfxEnabled = document.getElementById('sfxToggle').checked;
-            APP.settings.sfxVolume = parseInt(document.getElementById('sfxVolume').value);
-            APP.settings.animationsEnabled = document.getElementById('animationsToggle').checked;
-            APP.settings.notificationsEnabled = document.getElementById('notificationsToggle').checked;
-            
-            // Save to localStorage
-            localStorage.setItem('mafiaGameSettings', JSON.stringify(APP.settings));
-            
-            // Apply settings
-            applySettings();
-            
-            // Close settings modal
-            closeSettings();
-            
-            showToast('تم حفظ الإعدادات', 'success');
-        }
-
-        function loadSettingsToUI() {
-            document.getElementById('musicToggle').checked = APP.settings.musicEnabled;
-            document.getElementById('musicVolume').value = APP.settings.musicVolume;
-            document.getElementById('musicVolumeValue').textContent = APP.settings.musicVolume + '%';
-            document.getElementById('sfxToggle').checked = APP.settings.sfxEnabled;
-            document.getElementById('sfxVolume').value = APP.settings.sfxVolume;
-            document.getElementById('sfxVolumeValue').textContent = APP.settings.sfxVolume + '%';
-            document.getElementById('animationsToggle').checked = APP.settings.animationsEnabled;
-            document.getElementById('notificationsToggle').checked = APP.settings.notificationsEnabled;
-        }
-
-        function applySettings() {
-            // Apply music settings
-            if (APP.settings.musicEnabled) {
-                if (!bgMusic) initMusic();
-                setMusicVolume(APP.settings.musicVolume);
-                if (APP.musicOn) {
-                    playMusic();
-                }
-            } else {
-                pauseMusic();
-            }
-            
-            // Re-render to apply changes
-            render();
-        }
-
-        function resetSettings() {
-            // Reset to defaults
-            APP.settings = {
-                musicEnabled: true,
-                musicVolume: 50,
-                sfxEnabled: true,
-                sfxVolume: 70,
-                animationsEnabled: true,
-                notificationsEnabled: true
-            };
-            
-            // Update UI
-            loadSettingsToUI();
-            
-            showToast('تم إعادة تعيين الإعدادات', 'info');
-        }
-
-        // ========== API URL HELPER ==========
-        function getApiUrl(endpoint) {
-            // Use window.location.origin to get full URL (protocol + domain)
-            return `${window.location.origin}/api${endpoint}`;
-        }
-
         // ========== SOCKET INITIALIZATION ==========
         function initSocket() {
             if (APP.socket) return;
             
-            const socketUrl = window.location.origin;
+            const socketUrl = window.location.origin || `http://${window.location.hostname}:5000`;
             console.log('🔌 Connecting to socket:', socketUrl);
             
             APP.socket = io(socketUrl, {
@@ -1870,14 +1441,9 @@
                 render();
             });
 
-            // Chat - FIXED: Allow chat before game starts
+            // Chat
             APP.socket.on('chat_message', (data) => {
-                if (!chatMessages.public) chatMessages.public = [];
-                chatMessages.public.push({ ...data, type: 'public' });
-                
-                if (currentChatTab === 'public') {
-                    render();
-                }
+                appendChatMessage(data);
             });
 
             APP.socket.on('vote_cast', (data) => {
@@ -1937,11 +1503,21 @@
         }
 
         // ========== CHAT HELPERS ==========
-        let currentChatTab = 'public';
-        let chatMessages = {
-            public: [],
-            mafia: []
-        };
+        function appendChatMessage(data) {
+            const chatBox = document.getElementById('chatBox');
+            if (!chatBox) return;
+
+            const msgEl = document.createElement('div');
+            msgEl.className = 'chat-message';
+            msgEl.innerHTML = `
+                <span class="chat-from">${data.from}:</span>
+                <span class="chat-text">${data.text}</span>
+                <span class="chat-ts">${new Date(data.ts).toLocaleTimeString()}</span>
+            `;
+
+            chatBox.appendChild(msgEl);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
 
         function sendChatMessage() {
             const input = document.getElementById('chatInput');
@@ -2040,8 +1616,10 @@
 
             // Waiting room layout (before game starts)
             if (!APP.gameState || phase === 'waiting') {
-                // FIXED: Check if current user is host
-                const isHost = APP.activeRoom && APP.activeRoom.host_id === APP.mySid;
+                const isHost = APP.activeRoom && (
+                    APP.activeRoom.host_id === APP.user?.id || 
+                    (APP.players.length > 0 && APP.players[0].sid === APP.mySid)
+                );
                 
                 return `<div class="game-room-container">
                     <div class="game-header">${APP.activeRoom?.name || 'Game Room'}</div>
@@ -2198,10 +1776,15 @@
         }
 
         // ========== ENHANCED CHAT SYSTEM ==========
+        let currentChatTab = 'public';
+        let chatMessages = {
+            public: [],
+            mafia: []
+        };
+
         function renderEnhancedChatPanel() {
             const isMafia = APP.myRole && APP.myRole.role === 'mafia';
             const isNight = APP.gameState && APP.gameState.phase === 'night';
-            const isWaiting = !APP.gameState || APP.gameState.phase === 'waiting';
             
             return `
                 <div class="chat-system">
@@ -2212,7 +1795,7 @@
                                     onclick="switchChatTab('public')">
                                 Public
                             </button>
-                            ${isMafia && !isWaiting ? `
+                            ${isMafia ? `
                                 <button class="chat-tab ${currentChatTab === 'mafia' ? 'active' : ''} ${!isNight ? 'disabled' : ''}" 
                                         onclick="switchChatTab('mafia')">
                                     🔫 Mafia
@@ -2285,9 +1868,8 @@
         function switchChatTab(tab) {
             const isMafia = APP.myRole && APP.myRole.role === 'mafia';
             const isNight = APP.gameState && APP.gameState.phase === 'night';
-            const isWaiting = !APP.gameState || APP.gameState.phase === 'waiting';
             
-            if (tab === 'mafia' && (!isMafia || !isNight || isWaiting)) {
+            if (tab === 'mafia' && (!isMafia || !isNight)) {
                 showToast('Mafia chat only available for mafia at night', 'error');
                 return;
             }
@@ -2298,7 +1880,7 @@
 
         function getChatPlaceholder() {
             if (!APP.gameState || APP.gameState.phase === 'waiting') {
-                return "Chat with other players while waiting...";
+                return "Chat will be available when game starts...";
             }
             
             if (currentChatTab === 'mafia') {
@@ -2314,7 +1896,7 @@
 
         function getChatPlaceholderText() {
             if (!APP.gameState || APP.gameState.phase === 'waiting') {
-                return "Start chatting with other players!";
+                return "Wait for the game to start to begin chatting!";
             }
             
             if (currentChatTab === 'mafia') {
@@ -2324,9 +1906,8 @@
         }
 
         function isChatDisabled() {
-            // FIXED: Chat is always enabled in waiting phase
             if (!APP.gameState || APP.gameState.phase === 'waiting') {
-                return false;
+                return true;
             }
             
             if (currentChatTab === 'mafia') {
@@ -2350,6 +1931,11 @@
 
             const message = input.value.trim();
             input.value = '';
+
+            if (!APP.gameState || APP.gameState.phase === 'waiting') {
+                showToast('Chat is not available before game starts', 'error');
+                return;
+            }
 
             if (currentChatTab === 'mafia') {
                 APP.socket.emit('mafia_chat_message', {
@@ -2381,7 +1967,7 @@
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
 
-            fetch(getApiUrl('/auth/login'), {
+            fetch(`http://${window.location.hostname}:5000/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
@@ -2400,18 +1986,15 @@
                     goHome();
                 }
             })
-            .catch(e => {
-                console.error('Login error:', e);
-                showToast('Login failed: ' + e.message, 'error');
-            });
+            .catch(e => showToast('Login failed', 'error'));
         }
 
-        function createAccount() {
+        function handleRegister() {
             const username = document.getElementById('username').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
-            fetch(getApiUrl('/auth/register'), {
+            fetch(`http://${window.location.hostname}:5000/api/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, email, password })
@@ -2430,26 +2013,21 @@
                     goHome();
                 }
             })
-            .catch(e => {
-                console.error('Register error:', e);
-                showToast('Registration failed: ' + e.message, 'error');
-            });
+            .catch(e => showToast('Registration failed', 'error'));
         }
 
         function loginAsGuest() {
             console.log('🎮 Guest login attempt...');
-            showLoading('جاري الدخول كضيف...');
+            const url = `http://${window.location.hostname}:5000/api/auth/guest`;
             
-            fetch(getApiUrl('/auth/guest'), { 
+            fetch(url, { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             })
             .then(r => r.json())
             .then(data => {
-                hideLoading();
                 if (data.error) {
                     showToast(data.error, 'error');
-                    console.error('Guest login error:', data.error);
                     return;
                 }
                 APP.user = data.user;
@@ -2460,7 +2038,6 @@
                 goPlay();
             })
             .catch(e => {
-                hideLoading();
                 console.error('❌ Guest login error:', e);
                 showToast('Guest login failed: ' + e.message, 'error');
             });
@@ -2493,78 +2070,54 @@
         }
 
         function loadRooms() {
-            showLoading('جاري تحميل الغرف...');
-            
-            fetch(getApiUrl('/rooms'))
+            fetch(`http://${window.location.hostname}:5000/api/rooms`)
                 .then(r => r.json())
                 .then(rooms => {
-                    hideLoading();
                     APP.rooms = rooms;
                     render();
                 })
                 .catch(e => {
-                    hideLoading();
                     console.error('Failed to load rooms:', e);
-                    showToast('Failed to load rooms: ' + e.message, 'error');
+                    showToast('Failed to load rooms', 'error');
                 });
         }
 
         function createRoom() {
-            showLoading('جاري إنشاء الغرفة...');
-            
             const nameInput = document.getElementById('roomNameInput');
             const maxPlayersInput = document.getElementById('roomMaxPlayers');
 
-            const name = (nameInput?.value || 'غرفتي').trim();
+            const name = (nameInput?.value || 'Game Room').trim() || 'Game Room';
             const max_players = parseInt(maxPlayersInput?.value || '8', 10);
 
-            fetch(getApiUrl('/rooms'), {
+            fetch(`http://${window.location.hostname}:5000/api/rooms`, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${APP.authToken}`
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name,
+                    host_id: APP.user?.id,
                     max_players,
                     mafia_count: 2,
                     detective_count: 1,
                     doctor_count: 1
                 })
             })
-            .then(r => {
-                if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
-                return r.json();
-            })
+            .then(r => r.json())
             .then(room => {
-                hideLoading();
                 APP.activeRoom = room;
-                // FIXED: Set the current user as host
-                APP.activeRoom.host_id = APP.mySid;
-                
                 if (APP.socket) {
-                    APP.socket.emit('join_room', { 
-                        room_id: room.id, 
-                        nickname: APP.user.username 
-                    });
+                    APP.socket.emit('join_room', { room_id: room.id, nickname: APP.user.username });
                 }
-                showToast('تم إنشاء الغرفة بنجاح!', 'success');
                 render();
             })
             .catch(e => {
-                hideLoading();
-                console.error('Create room error:', e);
-                showToast('فشل إنشاء الغرفة: ' + e.message, 'error');
+                showToast('Failed to create room', 'error');
             });
         }
 
         function joinRoom(roomId) {
-            showLoading('جاري الانضمام للغرفة...');
-            
-            fetch(getApiUrl(`/rooms/${roomId}`))
+            fetch(`http://${window.location.hostname}:5000/api/rooms/${roomId}`)
                 .then(r => r.json())
                 .then(room => {
-                    hideLoading();
                     APP.activeRoom = room;
                     if (APP.socket) {
                         APP.socket.emit('join_room', { room_id: roomId, nickname: APP.user.username });
@@ -2572,21 +2125,13 @@
                     render();
                 })
                 .catch(e => {
-                    hideLoading();
-                    console.error('Join room error:', e);
-                    showToast('Failed to join room: ' + e.message, 'error');
+                    showToast('Failed to join room', 'error');
                 });
         }
 
         function startGame() {
             if (!APP.activeRoom) {
                 showToast('No active room', 'error');
-                return;
-            }
-            
-            // FIXED: Double-check that user is host
-            if (APP.activeRoom.host_id !== APP.mySid) {
-                showToast('Only the host can start the game', 'error');
                 return;
             }
             
@@ -2679,43 +2224,30 @@
         }
 
         function toggleSettings() {
-            openSettings();
+            showToast('الإعدادات', 'info');
         }
 
         function toggleMute() {
             APP.micMuted = !APP.micMuted;
             document.getElementById('micIcon').textContent = APP.micMuted ? '🔇' : '🎙️';
-            
-            if (APP.micMuted) {
-                // Mute all audio tracks
-                if (VOICE.localStream) {
-                    VOICE.localStream.getAudioTracks().forEach(track => {
-                        track.enabled = false;
-                    });
-                }
-                showToast('تم كتم الميكروفون', 'info');
-            } else {
-                // Unmute all audio tracks
-                if (VOICE.localStream) {
-                    VOICE.localStream.getAudioTracks().forEach(track => {
-                        track.enabled = true;
-                    });
-                }
-                showToast('الميكروفون شغال', 'info');
-            }
+            showToast(APP.micMuted ? 'تم كتم الميكروفون' : 'الميكروفون شغال', 'info');
         }
 
         function toggleMusic() {
-            if (!bgMusic) initMusic();
-            
+            initMusic();
+            if (!bgMusic) return;
+
             APP.musicOn = !APP.musicOn;
             document.getElementById('musicIcon').textContent = APP.musicOn ? '🔊' : '🎵';
             
             try {
                 if (APP.musicOn) {
-                    playMusic();
+                    bgMusic.play().catch(() => {
+                        APP.musicOn = false;
+                        showToast('تعذر تشغيل الموسيقى تلقائياً', 'error');
+                    });
                 } else {
-                    pauseMusic();
+                    bgMusic.pause();
                 }
             } catch (e) {
                 console.error('Music toggle error', e);
@@ -2730,11 +2262,7 @@
             
             try {
                 VOICE.localStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }, 
+                    audio: true, 
                     video: false 
                 });
                 console.log('🎤 Got local audio stream');
@@ -2748,10 +2276,7 @@
 
         function createPeerConnection(targetSid) {
             const pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
             });
 
             // Add local stream
@@ -2766,16 +2291,11 @@
                 const audio = document.createElement('audio');
                 audio.srcObject = event.streams[0];
                 audio.autoplay = true;
-                audio.volume = 0.7;
                 
                 if (!VOICE.peers[targetSid]) {
                     VOICE.peers[targetSid] = {};
                 }
                 VOICE.peers[targetSid].audioEl = audio;
-                
-                // Add to DOM (hidden) to ensure it plays
-                audio.style.display = 'none';
-                document.body.appendChild(audio);
             };
 
             // ICE candidate handling
@@ -2787,14 +2307,6 @@
                         signal_type: 'ice',
                         data: event.candidate
                     });
-                }
-            };
-
-            // Handle connection state changes
-            pc.onconnectionstatechange = () => {
-                console.log(`Connection state with ${targetSid}: ${pc.connectionState}`);
-                if (pc.connectionState === 'connected') {
-                    showToast(`Voice connected with ${targetSid}`, 'success');
                 }
             };
 
@@ -2875,9 +2387,6 @@
                 chatMessages.mafia = [];
                 currentChatTab = 'public';
                 
-                // Initialize voice chat for all players
-                connectVoicePeers();
-                
                 render();
             });
 
@@ -2895,22 +2404,6 @@
 
         // ========== INITIALIZATION ==========
         document.addEventListener('DOMContentLoaded', () => {
-            // Load settings first
-            loadSettings();
-            
-            // Initialize music
-            initMusic();
-            
-            // Set up volume slider event listeners
-            document.addEventListener('input', function(e) {
-                if (e.target.id === 'musicVolume') {
-                    document.getElementById('musicVolumeValue').textContent = e.target.value + '%';
-                    setMusicVolume(e.target.value);
-                } else if (e.target.id === 'sfxVolume') {
-                    document.getElementById('sfxVolumeValue').textContent = e.target.value + '%';
-                }
-            });
-            
             if (APP.authToken) {
                 APP.user = { username: 'User', id: 'temp-id' };
                 initSocket();
@@ -2945,16 +2438,13 @@
         window.closeGuestNameModal = closeGuestNameModal;
         window.closeAccountModal = closeAccountModal;
         window.closeLoginModal = closeLoginModal;
-        window.openSettings = openSettings;
-        window.closeSettings = closeSettings;
-        window.saveSettings = saveSettings;
-        window.resetSettings = resetSettings;
         window.guestMode = guestMode;
         window.newAccount = newAccount;
         window.showLogin = showLogin;
         window.startGuest = startGuest;
         window.createAccount = createAccount;
         window.handleLogin = handleLogin;
+        window.handleRegister = handleRegister;
         window.loginAsGuest = loginAsGuest;
         window.logout = logout;
         window.createRoom = createRoom;
@@ -2976,9 +2466,6 @@
         // Close modals when clicking outside
         window.onclick = function(event) {
             if (event.target.classList && event.target.classList.contains('modal')) {
-                event.target.classList.remove('show');
-            }
-            if (event.target.classList && event.target.classList.contains('settings-modal')) {
                 event.target.classList.remove('show');
             }
         };
