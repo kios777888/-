@@ -147,7 +147,7 @@
         }
 
         .home-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #a1a1a12c;
             border: 8px solid #000000;
             border-radius: 20px;
             padding: 3rem;
@@ -165,10 +165,9 @@
             animation: float 3s ease-in-out infinite;
             margin: 0 auto 2rem;
             display: block;
-            border: 5px solid #000000;
             border-radius: 50%;
             padding: 10px;
-            background: white;
+            
         }
 
         @keyframes float {
@@ -1278,13 +1277,13 @@
             <h2 class="modal-title">اختر الخيار</h2>
             <div class="modal-buttons">
                 <button onclick="guestMode()">
-                    <span class="button_top">👥 ضيف واختر اسماك</span>
+                    <span class="button_top"> ضيف واختر اسماك</span>
                 </button>
                 <button onclick="newAccount()">
-                    <span class="button_top">📝 حساب جديد</span>
+                    <span class="button_top"> حساب جديد</span>
                 </button>
                 <button onclick="loginAsGuest()">
-                    <span class="button_top">🎮 العب كضيف</span>
+                    <span class="button_top"> العب كضيف</span>
                 </button>
             </div>
         </div>
@@ -1496,7 +1495,7 @@
             if (bgMusic) return;
             
             // Create audio element with the correct path
-            bgMusic = new Audio('/game-music.mp3');
+            bgMusic = new Audio('/music/game-music.mp3');
             bgMusic.loop = true;
             bgMusic.volume = APP.settings.musicVolume / 100;
             
