@@ -713,16 +713,31 @@
         }
 
         .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.05);
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            border: 2px solid #000000;
-            height: 300px;
-        }
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    border: 2px solid #000000;
+    height: 300px;
+    max-height: 350px;
+}
 
+/* Remove scrollbar at bottom */
+.chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: #000000;
+    border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+    background: #333333;
+}
         .chat-message {
             margin-bottom: 0.75rem;
             padding: 0.5rem;
@@ -1476,7 +1491,6 @@
             theme: 'dark',
             rooms: [],
             authToken: localStorage.getItem('authToken') || null,
-            chatMessages: [],
             settings: {
                 musicEnabled: true,
                 musicVolume: 50,
@@ -1494,12 +1508,14 @@
         function initMusic() {
             if (bgMusic) return;
             
-            // Create audio element with the correct path
             bgMusic = new Audio('/music/game-music.mp3');
             bgMusic.loop = true;
             bgMusic.volume = APP.settings.musicVolume / 100;
             
-            // Try to play if music is enabled
+            bgMusic.onerror = function() {
+                console.warn('⚠️ Could not load music file');
+            };
+            
             if (APP.settings.musicEnabled) {
                 playMusic();
             }
@@ -1509,10 +1525,17 @@
             if (!bgMusic) return;
             
             try {
-                bgMusic.play().catch(error => {
-                    console.log('Auto-play prevented, will play after user interaction');
-                    // Music will start after user interaction
-                });
+                const playPromise = bgMusic.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log('✓ Music playing');
+                            APP.musicOn = true;
+                        })
+                        .catch(error => {
+                            console.log('Auto-play prevented:', error);
+                        });
+                }
             } catch (error) {
                 console.error('Error playing music:', error);
             }
@@ -1527,6 +1550,25 @@
         function setMusicVolume(volume) {
             if (bgMusic) {
                 bgMusic.volume = volume / 100;
+            }
+        }
+
+        function toggleMusic() {
+            if (!bgMusic) initMusic();
+            
+            APP.musicOn = !APP.musicOn;
+            document.getElementById('musicIcon').textContent = APP.musicOn ? '🔊' : '🎵';
+            
+            try {
+                if (APP.musicOn) {
+                    playMusic();
+                } else {
+                    pauseMusic();
+                }
+                showToast(APP.musicOn ? 'الموسيقى مشغلة 🔊' : 'الموسيقى متوقفة 🔇', 'info');
+            } catch (e) {
+                console.error('Music toggle error', e);
+                APP.musicOn = false;
             }
         }
 
@@ -1729,7 +1771,6 @@
 
         // ========== API URL HELPER ==========
         function getApiUrl(endpoint) {
-            // Use window.location.origin to get full URL (protocol + domain)
             return `${window.location.origin}/api${endpoint}`;
         }
 
@@ -1768,7 +1809,6 @@
                 APP.players = Object.values(data.players || {});
                 showToast(`${data.player.nickname} joined`, 'info');
                 render();
-                // when someone new joins, try to establish voice connections
                 connectVoicePeers();
             });
 
@@ -1787,7 +1827,14 @@
             APP.socket.on('game_started', (data) => {
                 APP.gameState = data;
                 APP.players = Object.values(data.players || {});
+                
+                // Clear chat on game start
+                chatMessages.public = [];
+                chatMessages.mafia = [];
+                currentChatTab = 'public';
+                
                 showToast('🎮 Game started!', 'success');
+                connectVoicePeers();
                 render();
             });
 
@@ -1821,23 +1868,21 @@
                 render();
             });
 
-            // Night actions with feedback
+            // Investigation, healing, etc
             APP.socket.on('investigation_result', (data) => {
                 console.log('🔍 Investigation result:', data);
                 const resultText = data.is_mafia 
-                    ? `⚠️ ${data.target_nickname} is MAFIA!` 
-                    : `✓ ${data.target_nickname} is innocent`;
+                    ? `⚠️ ${data.target} is MAFIA!` 
+                    : `✓ ${data.target} is innocent`;
                 showToast(resultText, data.is_mafia ? 'error' : 'success');
-                flashPlayer(data.target_sid, data.is_mafia ? 'red' : 'green', 3000);
             });
 
             APP.socket.on('heal_result', (data) => {
                 console.log('🏥 Heal result:', data);
                 const resultText = data.saved
-                    ? `✓ You saved ${data.target_nickname}!`
-                    : `${data.target_nickname} was not targeted`;
+                    ? `✓ You saved ${data.target}!`
+                    : `${data.target} was not targeted`;
                 showToast(resultText, data.saved ? 'success' : 'info');
-                flashPlayer(data.target_sid, 'blue', 2000);
             });
 
             APP.socket.on('action_feedback', (data) => {
@@ -1845,42 +1890,35 @@
                 showToast(data.message, 'success');
             });
 
-            // Night outcome (public)
-            APP.socket.on('night_outcome', (data) => {
-                console.log('🌅 Night outcome:', data);
-                if (data.killed_sid) {
-                    markPlayerDead(data.killed_sid);
-                }
-                showToast(data.message, 'info');
-                render();
-            });
-
-            // Voting
-            APP.socket.on('vote_count', (data) => {
-                showToast(`🗳️ Vote: ${data.votes_count}/${data.total_alive}`, 'info');
-            });
-
-            APP.socket.on('day_outcome', (data) => {
-                console.log('⚖️ Day outcome:', data);
-                if (data.executed_sid) {
-                    markPlayerDead(data.executed_sid);
-                }
-                showToast(`${data.executed_nickname} was eliminated!`, 'info');
-                render();
-            });
-
-            // Chat - FIXED: Allow chat before game starts
-            APP.socket.on('chat_message', (data) => {
-                if (!chatMessages.public) chatMessages.public = [];
-                chatMessages.public.push({ ...data, type: 'public' });
-                
-                if (currentChatTab === 'public') {
-                    render();
-                }
-            });
-
             APP.socket.on('vote_cast', (data) => {
                 showToast(`${data.voter} → ${data.voted}`, 'info');
+            });
+
+            // Chat events
+            APP.socket.on('chat_message', (data) => {
+                if (!chatMessages.public) chatMessages.public = [];
+                
+                const isDuplicate = chatMessages.public.some(msg => 
+                    msg.from === data.from && msg.text === data.text && msg.ts === data.ts
+                );
+                
+                if (!isDuplicate) {
+                    chatMessages.public.push({ ...data, type: 'public' });
+                    if (currentChatTab === 'public') render();
+                }
+            });
+
+            APP.socket.on('mafia_chat_message', (data) => {
+                if (!chatMessages.mafia) chatMessages.mafia = [];
+                
+                const isDuplicate = chatMessages.mafia.some(msg => 
+                    msg.from === data.from && msg.text === data.text && msg.ts === data.ts
+                );
+                
+                if (!isDuplicate) {
+                    chatMessages.mafia.push(data);
+                    if (currentChatTab === 'mafia') render();
+                }
             });
 
             // Voice signaling
@@ -1911,9 +1949,6 @@
                     console.error('Voice signal error', e);
                 }
             });
-
-            // Register enhanced chat/timer handlers once socket is ready
-            registerEnhancedSocketEvents();
         }
 
         // ========== PLAYER UI HELPERS ==========
@@ -2039,7 +2074,6 @@
 
             // Waiting room layout (before game starts)
             if (!APP.gameState || phase === 'waiting') {
-                // FIXED: Check if current user is host
                 const isHost = APP.activeRoom && APP.activeRoom.host_id === APP.mySid;
                 
                 return `<div class="game-room-container">
@@ -2186,11 +2220,9 @@
 
             const phase = APP.gameState.phase;
             if (phase === 'night') {
-                // At night we only mark the local mafia player as allowed to talk
                 return player.sid === APP.mySid && APP.myRole && APP.myRole.role === 'mafia';
             }
             if (phase === 'day') {
-                // During the day everyone alive can talk (for now)
                 return true;
             }
             return false;
@@ -2323,7 +2355,6 @@
         }
 
         function isChatDisabled() {
-            // FIXED: Chat is always enabled in waiting phase
             if (!APP.gameState || APP.gameState.phase === 'waiting') {
                 return false;
             }
@@ -2538,7 +2569,6 @@
             .then(room => {
                 hideLoading();
                 APP.activeRoom = room;
-                // FIXED: Set the current user as host
                 APP.activeRoom.host_id = APP.mySid;
                 
                 if (APP.socket) {
@@ -2559,22 +2589,26 @@
 
         function joinRoom(roomId) {
             showLoading('جاري الانضمام للغرفة...');
-            
+
             fetch(getApiUrl(`/rooms/${roomId}`))
-                .then(r => r.json())
-                .then(room => {
-                    hideLoading();
-                    APP.activeRoom = room;
-                    if (APP.socket) {
-                        APP.socket.emit('join_room', { room_id: roomId, nickname: APP.user.username });
-                    }
-                    render();
-                })
-                .catch(e => {
-                    hideLoading();
-                    console.error('Join room error:', e);
-                    showToast('Failed to join room: ' + e.message, 'error');
-                });
+            .then(r => r.json())
+            .then(room => {
+                hideLoading();
+                APP.activeRoom = room;
+                
+                closePlayModal();
+                closeLoginModal();
+                
+                if (APP.socket) {
+                    APP.socket.emit('join_room', { room_id: roomId, nickname: APP.user.username });
+                }
+                render();
+            })
+            .catch(e => {
+                hideLoading();
+                console.error('Join room error:', e);
+                showToast('Failed to join room: ' + e.message, 'error');
+            });
         }
 
         function startGame() {
@@ -2583,7 +2617,6 @@
                 return;
             }
             
-            // FIXED: Double-check that user is host
             if (APP.activeRoom.host_id !== APP.mySid) {
                 showToast('Only the host can start the game', 'error');
                 return;
@@ -2686,7 +2719,6 @@
             document.getElementById('micIcon').textContent = APP.micMuted ? '🔇' : '🎙️';
             
             if (APP.micMuted) {
-                // Mute all audio tracks
                 if (VOICE.localStream) {
                     VOICE.localStream.getAudioTracks().forEach(track => {
                         track.enabled = false;
@@ -2694,7 +2726,6 @@
                 }
                 showToast('تم كتم الميكروفون', 'info');
             } else {
-                // Unmute all audio tracks
                 if (VOICE.localStream) {
                     VOICE.localStream.getAudioTracks().forEach(track => {
                         track.enabled = true;
@@ -2702,25 +2733,6 @@
                 }
                 showToast('الميكروفون شغال', 'info');
             }
-        }
-
-        function toggleMusic() {
-            if (!bgMusic) initMusic();
-            
-            APP.musicOn = !APP.musicOn;
-            document.getElementById('musicIcon').textContent = APP.musicOn ? '🔊' : '🎵';
-            
-            try {
-                if (APP.musicOn) {
-                    playMusic();
-                } else {
-                    pauseMusic();
-                }
-            } catch (e) {
-                console.error('Music toggle error', e);
-                APP.musicOn = false;
-            }
-            showToast(APP.musicOn ? 'الموسيقى مشغلة' : 'الموسيقى متوقفة', 'info');
         }
 
         // ========== VOICE CHAT FUNCTIONS ==========
@@ -2772,7 +2784,6 @@
                 }
                 VOICE.peers[targetSid].audioEl = audio;
                 
-                // Add to DOM (hidden) to ensure it plays
                 audio.style.display = 'none';
                 document.body.appendChild(audio);
             };
@@ -2841,55 +2852,6 @@
                 VOICE.localStream.getTracks().forEach(track => track.stop());
                 VOICE.localStream = null;
             }
-        }
-
-        // ========== SOCKET EVENT REGISTRATION ==========
-        function registerEnhancedSocketEvents() {
-            if (!APP.socket) return;
-
-            APP.socket.on('mafia_chat_message', (data) => {
-                if (!chatMessages.mafia) chatMessages.mafia = [];
-                chatMessages.mafia.push(data);
-                
-                if (currentChatTab === 'mafia') {
-                    render();
-                }
-            });
-
-            APP.socket.on('chat_message', (data) => {
-                if (!chatMessages.public) chatMessages.public = [];
-                chatMessages.public.push({ ...data, type: 'public' });
-                
-                if (currentChatTab === 'public') {
-                    render();
-                }
-            });
-
-            APP.socket.on('game_started', (data) => {
-                APP.gameState = data;
-                APP.players = Object.values(data.players || {});
-                showToast('🎮 Game started!', 'success');
-                
-                chatMessages.public = [];
-                chatMessages.mafia = [];
-                currentChatTab = 'public';
-                
-                // Initialize voice chat for all players
-                connectVoicePeers();
-                
-                render();
-            });
-
-            APP.socket.on('phase_change', (data) => {
-                APP.gameState = data;
-                APP.players = Object.values(data.players || {});
-                
-                if (data.phase === 'day' && data.killed) {
-                    markPlayerDead(data.killed);
-                }
-                
-                render();
-            });
         }
 
         // ========== INITIALIZATION ==========
@@ -2974,12 +2936,14 @@
 
         // Close modals when clicking outside
         window.onclick = function(event) {
-            if (event.target.classList && event.target.classList.contains('modal')) {
-                event.target.classList.remove('show');
-            }
-            if (event.target.classList && event.target.classList.contains('settings-modal')) {
-                event.target.classList.remove('show');
-            }
+            const modals = ['playModal', 'guestNameModal', 'accountModal', 'loginModal', 'settingsModal'];
+            
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (modal && event.target === modal) {
+                    modal.classList.remove('show');
+                }
+            });
         };
     </script>
 </body>
