@@ -1,6 +1,6 @@
 """
 شكون لمافيا - Enhanced Mafia Game Backend
-Production-ready for Render deployment
+Fixed version with proper phase transitions and room cleanup
 """
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -15,6 +15,7 @@ import uuid
 import logging
 import time
 from datetime import datetime, timedelta
+from threading import Timer
 
 # ============================================================================
 # CONFIGURATION
@@ -22,15 +23,13 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__, template_folder='templates', static_folder='templates')
 
-# Environment-based config
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-2024')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///mafia.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JSON_AS_ASCII'] = False
-app.config['SESSION_COOKIE_SECURE'] = False  # Allow HTTP for development
+app.config['SESSION_COOKIE_SECURE'] = False
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-# Initialize extensions
 db = SQLAlchemy(app)
 socketio = SocketIO(
     app,
@@ -43,7 +42,6 @@ socketio = SocketIO(
 )
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]}})
 
-# Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -129,11 +127,14 @@ class GameRoom(db.Model):
 
 active_rooms = {}
 ROLES = {
-    'mafia': {'ar': 'مافيا', 'en': 'Mafia', 'icon': '🔫'},
-    'detective': {'ar': 'محقق', 'en': 'Detective', 'icon': '🔍'},
-    'doctor': {'ar': 'طبيب', 'en': 'Doctor', 'icon': '🏥'},
-    'villager': {'ar': 'مواطن', 'en': 'Villager', 'icon': '👥'}
+    'mafia': {'ar': 'مافيا', 'en': 'Mafia', 'icon': '🔫', 'color': '#dc2626'},
+    'detective': {'ar': 'محقق', 'en': 'Detective', 'icon': '🔍', 'color': '#3b82f6'},
+    'doctor': {'ar': 'طبيب', 'en': 'Doctor', 'icon': '🏥', 'color': '#10b981'},
+    'villager': {'ar': 'مواطن', 'en': 'Villager', 'icon': '👥', 'color': '#6b7280'}
 }
+
+NIGHT_DURATION = 30  # seconds
+DAY_DURATION = 45    # seconds
 
 
 def get_or_create_room(room_id):
@@ -142,14 +143,228 @@ def get_or_create_room(room_id):
             'players': {},
             'phase': 'waiting',
             'round': 0,
-            'mafia_target': None,
+            'mafia_targets': {},  # FIXED: Track all mafia targets
             'doctor_target': None,
             'detective_target': None,
             'day_votes': {},
-            'night_actions_ready': {},
+            'phase_timer': None,
             'created_at': time.time()
         }
     return active_rooms[room_id]
+
+
+def cleanup_empty_room(room_id):
+    """Delete room if no players"""
+    room = active_rooms.get(room_id)
+    if not room or len(room.get('players', {})) == 0:
+        # Cancel any pending timers
+        if room and room.get('phase_timer'):
+            room['phase_timer'].cancel()
+        
+        # Delete from database
+        try:
+            db_room = GameRoom.query.get(room_id)
+            if db_room:
+                db.session.delete(db_room)
+                db.session.commit()
+        except:
+            db.session.rollback()
+        
+        # Delete from active rooms
+        if room_id in active_rooms:
+            del active_rooms[room_id]
+        
+        logger.info(f"🗑️ Deleted empty room: {room_id}")
+
+
+# ============================================================================
+# PHASE TRANSITION FUNCTIONS
+# ============================================================================
+
+def transition_to_day(room_id):
+    """Execute night actions and move to day"""
+    room = active_rooms.get(room_id)
+    if not room:
+        return
+    
+    db_room = GameRoom.query.get(room_id)
+    if not db_room:
+        return
+    
+    players = room['players']
+    
+    # FIXED: Resolve mafia target (random from all submissions)
+    mafia_targets = list(room['mafia_targets'].values())
+    killed_sid = None
+    
+    if mafia_targets:
+        # If multiple targets, pick random one (or let them all be killed?)
+        # For now: pick the one with most votes, or random if tied
+        from collections import Counter
+        vote_counts = Counter(mafia_targets)
+        killed_sid = vote_counts.most_common(1)[0][0]
+    
+    # Check if doctor healed the target
+    doctor_saved = room['doctor_target'] == killed_sid
+    if doctor_saved and killed_sid:
+        killed_sid = None
+    
+    # Mark killed player as dead
+    if killed_sid and killed_sid in players:
+        players[killed_sid]['alive'] = False
+        message = f"☀️ {players[killed_sid]['nickname']} was killed by the Mafia!"
+    else:
+        message = "☀️ The Mafia couldn't kill anyone last night (doctor saved them!)"
+    
+    # Check win conditions
+    winner = check_win_condition(room)
+    
+    if winner:
+        end_game(room_id, winner, room)
+    else:
+        # Move to day phase
+        room['phase'] = 'day'
+        room['round'] += 1
+        room['day_votes'] = {}
+        
+        db_room.game_state = json.dumps({
+            'phase': 'day',
+            'round': room['round'],
+            'message': message,
+            'killed_sid': killed_sid
+        })
+        db.session.commit()
+        
+        socketio.emit('phase_change', {
+            'phase': 'day',
+            'round': room['round'],
+            'message': message,
+            'killed': killed_sid,
+            'players': players
+        }, room=room_id)
+        
+        # Schedule day->night transition
+        schedule_phase_transition(room_id, 'night', DAY_DURATION)
+
+
+def transition_to_night(room_id):
+    """Execute day voting and move to night"""
+    room = active_rooms.get(room_id)
+    if not room:
+        return
+    
+    db_room = GameRoom.query.get(room_id)
+    if not db_room:
+        return
+    
+    players = room['players']
+    
+    # Get votes and execute
+    votes = room['day_votes']
+    if votes:
+        from collections import Counter
+        vote_counts = Counter(votes.values())
+        executed_sid = vote_counts.most_common(1)[0][0]
+        
+        if executed_sid in players:
+            players[executed_sid]['alive'] = False
+            message = f"⚖️ {players[executed_sid]['nickname']} was voted out!"
+        else:
+            message = "⚖️ Vote completed"
+    else:
+        message = "⚖️ No votes cast, no one eliminated"
+    
+    # Check win conditions
+    winner = check_win_condition(room)
+    
+    if winner:
+        end_game(room_id, winner, room)
+    else:
+        # Move to night phase
+        room['phase'] = 'night'
+        room['mafia_targets'] = {}
+        room['doctor_target'] = None
+        room['detective_target'] = None
+        
+        db_room.game_state = json.dumps({
+            'phase': 'night',
+            'round': room['round'],
+            'message': '🌙 Night phase started'
+        })
+        db.session.commit()
+        
+        socketio.emit('phase_change', {
+            'phase': 'night',
+            'round': room['round'],
+            'message': '🌙 Night phase started',
+            'players': players
+        }, room=room_id)
+        
+        # Schedule night->day transition
+        schedule_phase_transition(room_id, 'day', NIGHT_DURATION)
+
+
+def schedule_phase_transition(room_id, next_phase, delay):
+    """Schedule the next phase transition"""
+    room = active_rooms.get(room_id)
+    if not room:
+        return
+    
+    # Cancel previous timer
+    if room.get('phase_timer'):
+        room['phase_timer'].cancel()
+    
+    def do_transition():
+        try:
+            if next_phase == 'day':
+                transition_to_day(room_id)
+            elif next_phase == 'night':
+                transition_to_night(room_id)
+        except Exception as e:
+            logger.error(f"Phase transition error: {e}")
+    
+    timer = Timer(delay, do_transition)
+    timer.daemon = True
+    timer.start()
+    
+    room['phase_timer'] = timer
+    logger.info(f"⏱️ Scheduled {next_phase} phase in {delay}s for room {room_id}")
+
+
+def check_win_condition(room):
+    """Check if game is over, return winner or None"""
+    players = room['players']
+    alive_players = [p for p in players.values() if p['alive']]
+    alive_mafia = [p for p in alive_players if p.get('role') == 'mafia']
+    
+    if not alive_mafia:
+        return 'town'
+    if len(alive_mafia) >= len(alive_players) / 2:
+        return 'mafia'
+    
+    return None
+
+
+def end_game(room_id, winner, room):
+    """End the game"""
+    room['phase'] = 'ended'
+    
+    db_room = GameRoom.query.get(room_id)
+    if db_room:
+        db_room.status = 'ended'
+        db_room.ended_at = datetime.utcnow()
+        db.session.commit()
+    
+    message = f"🎉 {'Mafia' if winner == 'mafia' else 'Town'} wins!"
+    
+    socketio.emit('game_ended', {
+        'phase': 'ended',
+        'winner': winner,
+        'message': message,
+        'players': room['players']
+    }, room=room_id)
+    
+    logger.info(f"🏁 Game ended in {room_id}, winner: {winner}")
 
 
 # ============================================================================
@@ -187,11 +402,6 @@ def serve_fonts(filename):
 @app.route('/')
 def index():
     return render_template('index.html')
-
-
-@app.route('/print')
-def print_page():
-    return render_template('print.html')
 
 
 @app.route('/health', methods=['GET'])
@@ -392,9 +602,6 @@ def handle_disconnect():
             if db_room:
                 try:
                     db_room.players_data = json.dumps(room['players'])
-                    if not room['players']:
-                        db.session.delete(db_room)
-                        del active_rooms[room_id]
                     db.session.commit()
                 except:
                     db.session.rollback()
@@ -402,6 +609,9 @@ def handle_disconnect():
             emit('player_left', {
                 'player_count': len(room.get('players', {}))
             }, room=room_id)
+            
+            # FIXED: Cleanup empty rooms
+            cleanup_empty_room(room_id)
 
 
 @socketio.on('join_room')
@@ -451,15 +661,15 @@ def on_leave_room(data):
         if db_room:
             try:
                 db_room.players_data = json.dumps(active_rooms[room_id]['players'])
-                if not active_rooms[room_id]['players']:
-                    db.session.delete(db_room)
-                    del active_rooms[room_id]
                 db.session.commit()
             except:
                 db.session.rollback()
         
         leave_room(room_id)
         emit('player_left', {'player_count': 0}, room=room_id)
+        
+        # FIXED: Cleanup empty rooms
+        cleanup_empty_room(room_id)
 
 
 @socketio.on('start_game')
@@ -478,8 +688,8 @@ def on_start_game(data):
         return
     
     players_list = list(room['players'].values())
-    if len(players_list) < 4:
-        emit('error', {'message': f'Need 4+ players, have {len(players_list)}'}, room=room_id)
+    if len(players_list) < 3:
+        emit('error', {'message': f'Need 3+ players, have {len(players_list)}'}, room=room_id)
         return
     
     roles = ['mafia', 'mafia', 'detective', 'doctor'] + ['villager'] * (len(players_list) - 4)
@@ -507,7 +717,8 @@ def on_start_game(data):
             'role': player['role'],
             'role_name': role_info.get('en', 'Unknown'),
             'role_ar': role_info.get('ar', 'غير معروف'),
-            'icon': role_info.get('icon', '')
+            'icon': role_info.get('icon', ''),
+            'color': role_info.get('color', '#000000')
         }, room=player_sid)
     
     emit('game_started', {
@@ -518,6 +729,9 @@ def on_start_game(data):
     }, room=room_id)
     
     logger.info(f"🎮 Game started in {room_id}")
+    
+    # FIXED: Schedule first day transition
+    schedule_phase_transition(room_id, 'day', NIGHT_DURATION)
 
 
 @socketio.on('night_action')
@@ -541,11 +755,16 @@ def on_night_action(data):
     target = room['players'][target_sid]
     
     if action == 'kill' and player['role'] == 'mafia':
-        room['mafia_target'] = target_sid
+        # FIXED: Store mafia target (each mafia member submits)
+        room['mafia_targets'][sid] = target_sid
         emit('action_feedback', {'message': f"🔫 Target: {target['nickname']}"}, room=sid)
+        logger.info(f"🔫 Mafia {sid} targeting {target_sid}")
+    
     elif action == 'heal' and player['role'] == 'doctor':
         room['doctor_target'] = target_sid
         emit('action_feedback', {'message': f"🏥 Healing: {target['nickname']}"}, room=sid)
+        logger.info(f"🏥 Doctor {sid} healing {target_sid}")
+    
     elif action == 'investigate' and player['role'] == 'detective':
         room['detective_target'] = target_sid
         is_mafia = target['role'] == 'mafia'
@@ -553,6 +772,7 @@ def on_night_action(data):
             'target': target['nickname'],
             'is_mafia': is_mafia
         }, room=sid)
+        logger.info(f"🔍 Detective {sid} investigated {target_sid}: {'MAFIA' if is_mafia else 'INNOCENT'}")
 
 
 @socketio.on('day_vote')
