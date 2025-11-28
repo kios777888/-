@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room, leave_room, close_room
 import random
 import time
@@ -268,6 +268,27 @@ def index():
 @app.route('/health')
 def health():
     return jsonify({'status': 'healthy', 'rooms': len(rooms), 'players': len(players)})
+
+@app.route('/img/<path:filename>')
+def serve_image(filename):
+    try:
+        return send_from_directory('img', filename)
+    except:
+        return "Not found", 404
+
+@app.route('/music/<path:filename>')
+def serve_music(filename):
+    try:
+        return send_from_directory('music', filename)
+    except:
+        return "Not found", 404
+
+@app.route('/fonts/<path:filename>')
+def serve_fonts(filename):
+    try:
+        return send_from_directory('fonts', filename)
+    except:
+        return "Not found", 404
 
 @app.route('/api/rooms', methods=['GET'])
 def get_rooms():
