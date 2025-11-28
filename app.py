@@ -315,26 +315,27 @@ def create_room():
     try:
         data = request.get_json() or {}
         room_id = str(uuid.uuid4())[:8]
+        host_id = data.get('host_id', str(uuid.uuid4())[:8])
         
         room = GameRoom(
             room_id=room_id,
             name=data.get('name', 'غرفة جديدة'),
             max_players=int(data.get('max_players', 8)),
-            host_id=request.sid
+            host_id=host_id
         )
         
         rooms[room_id] = room
-        logger.info(f"Room created: {room_id}")
+        logger.info(f"Room created: {room_id} by {host_id}")
         
         return jsonify({
             'id': room_id,
             'name': room.name,
             'max_players': room.max_players,
             'host_id': room.host_id
-        })
+        }), 201
     except Exception as e:
         logger.error(f"Error creating room: {e}")
-        return jsonify({'error': 'Failed to create room'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/rooms/<room_id>')
 def get_room(room_id):
