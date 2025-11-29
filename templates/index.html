@@ -14,7 +14,7 @@
             --button_radius: 0.75em;
             --button_color: #ffffff;
             --button_outline_color: #000000;
-        }
+        }    
 
         * {
             margin: 0;
@@ -2540,46 +2540,60 @@
         }
 
         function createRoom() {
-            showLoading('جاري إنشاء الغرفة...');
-            
-            const nameInput = document.getElementById('roomNameInput');
-            const maxPlayersInput = document.getElementById('roomMaxPlayers');
-
-            const name = (nameInput?.value || 'غرفتي').trim();
-            const max_players = parseInt(maxPlayersInput?.value || '8', 10);
-
-            fetch(getApiUrl('/rooms'), {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${APP.authToken}`
-                },
-                body: JSON.stringify({
-                    name,
-                    max_players,
-                    mafia_count: 2,
-                    detective_count: 1,
-                    doctor_count: 1
-                })
-            })
-            .then(r => {
-                if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
-                return r.json();
-            })
-            .then(room => {
-                hideLoading();
-                APP.activeRoom = room;
-                APP.activeRoom.host_id = APP.mySid;
-                
-                if (APP.socket) {
-                    APP.socket.emit('join_room', { 
-                        room_id: room.id, 
-                        nickname: APP.user.username 
-                    });
-                }
-                showToast('تم إنشاء الغرفة بنجاح!', 'success');
-                render();
-            })
+    showLoading('جاري إنشاء الغرفة...');
+    
+    // CRITICAL: Make sure socket is connected FIRST
+    if (!APP.socket || !APP.socket.connected) {
+        hideLoading();
+        showToast('Socket not connected yet', 'error');
+        return;
+    }
+    
+    const nameInput = document.getElementById('roomNameInput');
+    const maxPlayersInput = document.getElementById('roomMaxPlayers');
+    const name = (nameInput?.value || 'غرفتي').trim();
+    const max_players = parseInt(maxPlayersInput?.value || '8', 10);
+    
+    fetch(getApiUrl('/rooms'), {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${APP.authToken}`
+        },
+        body: JSON.stringify({
+            name,
+            max_players,
+            mafia_count: 2,
+            detective_count: 1,
+            doctor_count: 1,
+            host_id: APP.mySid  // ← SEND HOST_ID TO BACKEND
+        })
+    })
+    .then(r => {
+        if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
+        return r.json();
+    })
+    .then(room => {
+        hideLoading();
+        APP.activeRoom = room;
+        // FIXED: Use the host_id from backend response
+        // Don't override it, trust the backend
+        
+        if (APP.socket) {
+            APP.socket.emit('join_room', { 
+                room_id: room.id, 
+                nickname: APP.user.username 
+            });
+        }
+        showToast('تم إنشاء الغرفة بنجاح!', 'success');
+        render();
+    })
+    .catch(e => {
+        hideLoading();
+        console.error('Create room error:', e);
+        showToast('فشل إنشاء الغرفة: ' + e.message, 'error');
+    });
+}
             .catch(e => {
                 hideLoading();
                 console.error('Create room error:', e);
@@ -2612,28 +2626,39 @@
         }
 
         function startGame() {
-            if (!APP.activeRoom) {
-                showToast('No active room', 'error');
-                return;
-            }
-            
-            if (APP.activeRoom.host_id !== APP.mySid) {
-                showToast('Only the host can start the game', 'error');
-                return;
-            }
-            
-            if (APP.players.length < 3) {
-                showToast(`Need 3+ players, have ${APP.players.length}`, 'error');
-                return;
-            }
-            
-            if (!APP.socket || !APP.socket.connected) {
-                showToast('Socket not connected', 'error');
-                return;
-            }
-            
-            APP.socket.emit('start_game', { room_id: APP.activeRoom.id });
-        }
+    if (!APP.activeRoom) {
+        showToast('No active room', 'error');
+        return;
+    }
+    
+    if (!APP.socket || !APP.socket.connected) {
+        showToast('Socket not connected', 'error');
+        return;
+    }
+    
+    if (!APP.mySid) {
+        showToast('Not connected to server', 'error');
+        return;
+    }
+    
+    if (APP.players.length < 3) {
+        showToast(`Need 3+ players, have ${APP.players.length}`, 'error');
+        return;
+    }
+    
+    console.log('DEBUG - Start Game:', {
+        mySid: APP.mySid,
+        hostId: APP.activeRoom.host_id,
+        match: APP.mySid === APP.activeRoom.host_id
+    });
+    
+    if (APP.activeRoom.host_id !== APP.mySid) {
+        showToast('Only the host can start the game', 'error');
+        return;
+    }
+    
+    APP.socket.emit('start_game', { room_id: APP.activeRoom.id });
+}
 
         function leaveRoom() {
             if (APP.socket && APP.activeRoom) {
