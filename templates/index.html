@@ -2542,7 +2542,6 @@
         function createRoom() {
     showLoading('جاري إنشاء الغرفة...');
     
-    // CRITICAL: Make sure socket is connected FIRST
     if (!APP.socket || !APP.socket.connected) {
         hideLoading();
         showToast('Socket not connected yet', 'error');
@@ -2566,7 +2565,7 @@
             mafia_count: 2,
             detective_count: 1,
             doctor_count: 1,
-            host_id: APP.mySid  // ← SEND HOST_ID TO BACKEND
+            host_id: APP.mySid
         })
     })
     .then(r => {
@@ -2576,8 +2575,6 @@
     .then(room => {
         hideLoading();
         APP.activeRoom = room;
-        // FIXED: Use the host_id from backend response
-        // Don't override it, trust the backend
         
         if (APP.socket) {
             APP.socket.emit('join_room', { 
@@ -2594,13 +2591,6 @@
         showToast('فشل إنشاء الغرفة: ' + e.message, 'error');
     });
 }
-            .catch(e => {
-                hideLoading();
-                console.error('Create room error:', e);
-                showToast('فشل إنشاء الغرفة: ' + e.message, 'error');
-            });
-        }
-
         function joinRoom(roomId) {
             showLoading('جاري الانضمام للغرفة...');
 
